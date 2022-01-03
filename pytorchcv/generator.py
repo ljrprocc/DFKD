@@ -1,8 +1,9 @@
 import torch.nn as nn
 import torch
-import yaml
+import sys
+sys.path.append('..')
 
-from ..conditional_batchnorm import CategoricalConditionalBatchNorm2d
+from conditional_batchnorm import CategoricalConditionalBatchNorm2d
 
 class Generator(nn.Module):
 	def __init__(self, options, teacher_weight=None, freeze=True):

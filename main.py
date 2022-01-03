@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import datetime
 import yaml
 import argparse
 import os
@@ -19,9 +20,13 @@ class Experiment:
         self.opt = opt
         self.G = G
         self.optimizer_state=None
+        self.start_epoch = opt.start_epoch
+        self.n_epochs = opt.n_epochs
         os.environ['CUDA_DEVICE_ORDER'] = "PCI_BUS_ID"
-        os.environ['CUDA_VISIBLE_DEVICES'] = self.opt.visible_devices
-        self.save_path = './save/test1/'
+        os.environ['CUDA_VISIBLE_DEVICES'] = self.opt.gpu
+        self.save_path = './save/{}/'.format(opt.save_name)
+        if not os.path.exists(self.save_path):
+            os.mkdir(self.save_path)
         self.logger = self.set_logger()
         self.prepare()
 
@@ -35,7 +40,8 @@ class Experiment:
     def _set_gpu(self):
         torch.manual_seed(self.opt.seed)
         torch.cuda.maunal_seed(self.opt.seed)
-        assert self.opt.GPU <= torch.cuda.device_count() - 1
+        gpu_lists = self.opt.gpu.split(',')
+        assert len(gpu_lists) <= torch.cuda.device_count()
         cudnn.benchmark = True
 
     def set_logger(self):
@@ -43,7 +49,7 @@ class Experiment:
         file_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
         console_formatter = logging.Formatter('%(message)s')
         # file log
-        file_handler = logging.FileHandler(os.path.join(self.settings.save_path, "train_test.log"))
+        file_handler = logging.FileHandler(os.path.join(self.opt.save_path, "train_test.log"))
         file_handler.setFormatter(file_formatter)
 
         # console log
@@ -91,14 +97,82 @@ class Experiment:
         else:
             assert False, "invalid data set"
 
+    def freeze_model(self,model):
+        """
+        freeze the activation range
+        """
+        if type(model) == nn.Sequential:
+            for n, m in model.named_children():
+                self.freeze_model(m)
+        else:
+            for attr in dir(model):
+                mod = getattr(model, attr)
+                if isinstance(mod, nn.Module) and 'norm' not in attr:
+                    self.freeze_model(mod)
+            return model
+
+    def unfreeze_model(self,model):
+        """
+        unfreeze the activation range
+        """
+        if type(model) == nn.Sequential:
+            for n, m in model.named_children():
+                self.unfreeze_model(m)
+        else:
+            for attr in dir(model):
+                mod = getattr(model, attr)
+                if isinstance(mod, nn.Module) and 'norm' not in attr:
+                    self.unfreeze_model(mod)
+            return model
+
 
     def train(self):
         best_top1 = 100
         best_top5 = 100
         st_time = time.time()
+        best_ep = 0
+
+        test_error, test_loss, test5_error = self.trainer.test_teacher(0)
+        for epoch in range(self.start_epoch, self.n_epochs):
+            self.epoch = epoch
+            if epoch < 4:
+                print('Unfreeze model')
+                train_error, train_loss, train5_error = self.trainer.train_loop(epoch=epoch)
+            self.freeze_model(self.model)
+            if self.opt.dataset in ["cifar100","cifar10"]:
+                test_error, test_loss, test5_error = self.trainer.test(epoch=epoch)
+            elif self.opt.dataset in ["imagenet"]:
+                if epoch > self.opt.warmup_epochs - 2:
+                    test_error, test_loss, test5_error = self.trainer.test(epoch=epoch)
+                else:
+                    test_error = 100
+                    test5_error = 100
+            else:
+                assert False, "invalid data set"
+
+
+            if best_top1 >= test_error:
+                best_ep = epoch+1
+                best_top1 = test_error
+                best_top5 = test5_error
+                print('Saving a best checkpoint ...')
+                torch.save(self.trainer.model.state_dict(),f"{self.opt.ckpt_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt")
+                torch.save(self.trainer.G.state_dict(),f"{self.opt.ckpt_path}/generator_{self.opt.dataset}-{self.opt.network}-w{self.opt.qw}_a{self.opt.qa}.pt")
+
+            self.logger.info("#==>Best Result of ep {:d} is: Top1 Error: {:f}, Top5 Error: {:f}, at ep {:d}".format(epoch+1, best_top1, best_top5, best_ep))
+            self.logger.info("#==>Best Result of ep {:d} is: Top1 Accuracy: {:f}, Top5 Accuracy: {:f} at ep {:d}".format(epoch+1 , 100 - best_top1, 100 - best_top5, best_ep))
+
+            end_time = time.time()
+            time_interval = end_time - st_time
+            t_string = "Running Time is: " + str(datetime.timedelta(seconds=time_interval)) + "\n"
+            self.logger.info(t_string)
+
+            return best_top1, best_top5
 
     def eval(self):
-        pass
+        weight_path = f"{self.opt.ckpt_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt"
+        self.trainer.model.load_state_dict(torch.load(weight_path))
+        self.trainer.test_student()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='DFKD Baseline')
@@ -115,13 +189,14 @@ if __name__ == "__main__":
     args = add_dict(args, opt)
     
     
-    dataset = args.config_path.split('/')[:-5]
+    dataset = args.config_path.split('/')[-1][:-5]
     args.dataset = dataset
-    exp = Experiment(opt=args)
+    
     # Trainer: models, loaders, option, tb_logger, ckpt_load
     # 1. models
+    # print(dataset)
     if dataset in ['cifar100', 'cifar10']:
-        if args.network in ['resnet20_cifar100', 'resnet20_cifar10']:
+        if args.network in ['resnet20_cifar100', 'resnet20_cifar10', 'resnet56_cifar100', 'resnet56_cifar10']:
             weight_t = ptcv_get_model(args.network, pretrained=True).output.weight.detach()
             generator = Generator(args, teacher_weight=weight_t, freeze=args.freeze)
 
@@ -136,7 +211,7 @@ if __name__ == "__main__":
     else:
         assert False, "invalid data set"
 
-
+    exp = Experiment(opt=args, G=generator)
     if args.eval:
         exp.eval()
     else:
