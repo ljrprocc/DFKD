@@ -10,7 +10,7 @@ class Generator(nn.Module):
 		super(Generator, self).__init__()
 		self.settings = options
 		if teacher_weight==None:
-			self.label_emb = nn.Embedding(self.settings.nClasses, self.settings.latent_dim)
+			self.label_emb = nn.Embedding(self.settings.n_cls, self.settings.latent_dim)
 		else:
 			self.label_emb = nn.Embedding.from_pretrained(teacher_weight, freeze=freeze)
 
@@ -45,6 +45,7 @@ class Generator(nn.Module):
 
 	def forward(self, z, labels, linear=None, z2=None):
 		if linear == None:
+			# print(self.label_emb(labels).shape,z.shape)
 			gen_input = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
 
 			if not self.settings.no_DM:

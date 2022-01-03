@@ -12,6 +12,7 @@ from pytorchcv.model_provider import get_model as ptcv_get_model
 from pytorchcv.generator import Generator, Generator_imagenet
 from dataloader import DataLoader
 from trainer import Trainer
+from tensorboardX import SummaryWriter
 import logging
 
 
@@ -38,8 +39,8 @@ class Experiment:
         self._set_trainer()
 
     def _set_gpu(self):
-        torch.manual_seed(self.opt.seed)
-        torch.cuda.maunal_seed(self.opt.seed)
+        torch.manual_seed(self.opt.random_seed)
+        torch.cuda.manual_seed(self.opt.random_seed)
         gpu_lists = self.opt.gpu.split(',')
         assert len(gpu_lists) <= torch.cuda.device_count()
         cudnn.benchmark = True
@@ -49,7 +50,7 @@ class Experiment:
         file_formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
         console_formatter = logging.Formatter('%(message)s')
         # file log
-        file_handler = logging.FileHandler(os.path.join(self.opt.save_path, "train_test.log"))
+        file_handler = logging.FileHandler(os.path.join(self.save_path, "train_test.log"))
         file_handler.setFormatter(file_formatter)
 
         # console log
@@ -60,6 +61,8 @@ class Experiment:
         logger.addHandler(console_handler)
 
         logger.setLevel(logging.INFO)
+        if self.opt.set_tb_logger:
+            self.tb_logger = SummaryWriter(logdir='./logs/{}/'.format(self.opt.save_name))
         return logger
 
     def _set_trainer(self):
@@ -68,6 +71,7 @@ class Experiment:
             loaders=(self.train_loader, self.test_loader),
             settings=self.opt,
             logger=self.logger,
+            tb_logger=self.tb_logger,
             optimizer_state=self.optimizer_state
         )
 
@@ -80,7 +84,8 @@ class Experiment:
     def _set_model(self):
         if dataset in ['cifar100', 'cifar10']:
             if args.network_s in ['resnet20_cifar100', 'resnet20_cifar10']:
-                self.model = ptcv_get_model(args.network_s, pretrained=True)
+                # self.model = ptcv_get_model(args.network_s, pretrained=True)
+                self.model = ptcv_get_model(args.network_s)
                 self.model_t = ptcv_get_model(args.network, pretrained=True)
                 self.model_t.eval()
 
@@ -132,18 +137,19 @@ class Experiment:
         st_time = time.time()
         best_ep = 0
 
-        test_error, test_loss, test5_error = self.trainer.test_teacher(0)
+        test_error, test_loss, test5_error = self.trainer.test_teacher()
         for epoch in range(self.start_epoch, self.n_epochs):
             self.epoch = epoch
             if epoch < 4:
                 print('Unfreeze model')
-                train_error, train_loss, train5_error = self.trainer.train_loop(epoch=epoch)
+                self.unfreeze_model(self.model)
+            train_error, train_loss, train5_error = self.trainer.train_loop(epoch=epoch)
             self.freeze_model(self.model)
             if self.opt.dataset in ["cifar100","cifar10"]:
-                test_error, test_loss, test5_error = self.trainer.test(epoch=epoch)
+                test_error, test_loss, test5_error = self.trainer.test_stu()
             elif self.opt.dataset in ["imagenet"]:
                 if epoch > self.opt.warmup_epochs - 2:
-                    test_error, test_loss, test5_error = self.trainer.test(epoch=epoch)
+                    test_error, test_loss, test5_error = self.trainer.test_stu()
                 else:
                     test_error = 100
                     test5_error = 100
@@ -156,18 +162,18 @@ class Experiment:
                 best_top1 = test_error
                 best_top5 = test5_error
                 print('Saving a best checkpoint ...')
-                torch.save(self.trainer.model.state_dict(),f"{self.opt.ckpt_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt")
-                torch.save(self.trainer.G.state_dict(),f"{self.opt.ckpt_path}/generator_{self.opt.dataset}-{self.opt.network}-w{self.opt.qw}_a{self.opt.qa}.pt")
+                torch.save(self.trainer.model.state_dict(),f"{self.save_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt")
+                torch.save(self.trainer.G.state_dict(),f"{self.save_path}/generator_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt")
 
-            self.logger.info("#==>Best Result of ep {:d} is: Top1 Error: {:f}, Top5 Error: {:f}, at ep {:d}".format(epoch+1, best_top1, best_top5, best_ep))
-            self.logger.info("#==>Best Result of ep {:d} is: Top1 Accuracy: {:f}, Top5 Accuracy: {:f} at ep {:d}".format(epoch+1 , 100 - best_top1, 100 - best_top5, best_ep))
+        self.logger.info("#==>Best Result of ep {:d} is: Top1 Error: {:f}, Top5 Error: {:f}, at ep {:d}".format(epoch+1, best_top1, best_top5, best_ep))
+        self.logger.info("#==>Best Result of ep {:d} is: Top1 Accuracy: {:f}, Top5 Accuracy: {:f} at ep {:d}".format(epoch+1 , 100 - best_top1, 100 - best_top5, best_ep))
 
-            end_time = time.time()
-            time_interval = end_time - st_time
-            t_string = "Running Time is: " + str(datetime.timedelta(seconds=time_interval)) + "\n"
-            self.logger.info(t_string)
+        end_time = time.time()
+        time_interval = end_time - st_time
+        t_string = "Running Time is: " + str(datetime.timedelta(seconds=time_interval)) + "\n"
+        self.logger.info(t_string)
 
-            return best_top1, best_top5
+        return best_top1, best_top5
 
     def eval(self):
         weight_path = f"{self.opt.ckpt_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt"
@@ -198,6 +204,8 @@ if __name__ == "__main__":
     if dataset in ['cifar100', 'cifar10']:
         if args.network in ['resnet20_cifar100', 'resnet20_cifar10', 'resnet56_cifar100', 'resnet56_cifar10']:
             weight_t = ptcv_get_model(args.network, pretrained=True).output.weight.detach()
+            if args.random_embedding:
+                weight_t = None
             generator = Generator(args, teacher_weight=weight_t, freeze=args.freeze)
 
         else:

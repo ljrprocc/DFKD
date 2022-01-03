@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.optim import optimizer
 from torch.optim.lr_scheduler import ExponentialLR
+from pytorchcv.models.diaresnet import DIALSTMCell
 from utils.model_transform import data_parallel
 from utils.compute import AverageMeter, compute_singlecrop, compute_tencrop
 from torch.autograd import Variable
@@ -14,16 +15,17 @@ __all__ = ['Trainer']
 
 class Trainer(nn.Module):
     def __init__(self, models, loaders, settings, logger, tb_logger=None, optimizer_state=None):
+        super(Trainer, self).__init__()
         model, model_t, model_G = models
         self.settings = settings
-        self.model = data_parallel(model, self.settings.nGPU, self.settings.GPU)
-        self.model_t = data_parallel(model_t, self.settings.nGPU, self.settings.GPU)
+        self.model = data_parallel(model, self.settings.nGPU, self.settings.gpu.split(','))
+        self.model_t = data_parallel(model_t, self.settings.nGPU, self.settings.gpu.split(','))
 
         self.all_y = torch.arange(self.settings.n_cls).cuda()
 
         self.no_noise = torch.zeros(self.settings.n_cls, self.settings.latent_dim).cuda()
 
-        self.G = data_parallel(model_G, self.settings.nGPU, self.settings.GPU)
+        self.G = data_parallel(model_G, self.settings.nGPU, self.settings.gpu.split(','))
 
         self.train_loader, self.test_loader = loaders
         self.tb_logger = tb_logger
@@ -53,7 +55,7 @@ class Trainer(nn.Module):
         self.optimizer_G = torch.optim.Adam(
             params=self.G.parameters(),
             lr=self.settings.lr_g,
-            beta=(self.settings.beta_g1, self.settings.beta_g2),
+            betas=(self.settings.beta_g1, self.settings.beta_g2),
             weight_decay=self.settings.weight_decay
         )
 
@@ -70,7 +72,7 @@ class Trainer(nn.Module):
         b = F.softmax(teacher_logits / t, dim=1)
         c = alpha * t * t
 
-        d = (-(linear*self.log_soft(logits)).sum(1)).mean()
+        d = criterion_d(logits, y).mean()
 
         l_kd = kdloss(a, b) * c + d
         return l_kd
@@ -141,7 +143,7 @@ class Trainer(nn.Module):
             self.var_list.clear()
 
             logit_teacher = self.model_t(images)
-            loss_one_hot = (-(label_loss*self.log_soft(logit_teacher)).sum(di=1)).mean()
+            loss_one_hot = (-(label_loss*self.log_soft(logit_teacher)).sum(dim=1)).mean()
             
             BNS_loss = torch.zeros(1).cuda()
 
@@ -152,7 +154,7 @@ class Trainer(nn.Module):
 
             loss_G = loss_one_hot + 0.1 * BNS_loss
             self.backward_G(loss_G)
-            output, loss_S = self.forward(images.detach(), logit_teacher)
+            output, loss_S = self.forward(images.detach(), logit_teacher.detach(), labels=labels)
 
             if epoch > self.settings.warmup_epochs:
                 self.backward_S(loss_S)
@@ -171,7 +173,7 @@ class Trainer(nn.Module):
             fp_acc.update(d_acc)
 
             if i % self.settings.print_freq == 0:
-                print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %f] [Oe-hot loss: %f] [BNS_loss:%f] [S loss: %f] [Time: %s]" % (epoch + 1, self.settings.epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), loss_S.item(), time.time() - st))
+                print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %.6f] [Oe-hot loss: %.6f] [BNS_loss:%.6f] [S loss: %.6f] [Time: %.6f s]" % (epoch + 1, self.settings.n_epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), loss_S.item(), time.time() - st))
 
                 global_iter = epoch * iters + i
 
@@ -184,9 +186,9 @@ class Trainer(nn.Module):
                 self.scalar_info['training_top5error'] = top5_error.avg
                 self.scalar_info['training_loss'] = top1_loss.avg
                 
-                if self.tensorboard_logger is not None:
+                if self.tb_logger is not None:
                     for tag, value in list(self.scalar_info.items()):
-                        self.tensorboard_logger.scalar_summary(tag, value, global_iter)
+                        self.tb_logger.add_scalar(tag, value, global_iter)
                     self.scalar_info = {}
 
         return top1_error.avg, top1_loss.avg, top5_error.avg
@@ -219,8 +221,9 @@ class Trainer(nn.Module):
                 single_error, single_loss, single5_error = compute_singlecrop(
 					outputs=output, loss=loss,
 					labels=labels, top5_flag=True, mean_flag=True)
-                
-                print( "[Batch %d/%d] [acc: %.4f%%]" % (i + 1, iters, (100.00-top1_error.avg)))
+
+                if False:
+                    print( "[Batch %d/%d] [acc: %.4f%%]" % (i + 1, iters, (100.00-top1_error.avg)))
 
                 top1_error.update(single_error, images.size(0))
                 top1_loss.update(single_loss, images.size(0))
@@ -230,6 +233,7 @@ class Trainer(nn.Module):
 
         print( "Testing finished in %f s."%(time.time() - st))
         print( "Student Model Accuracy : %.4f%%" % (100.00-top1_error.avg))
+        return top1_error.avg, top1_loss.avg, top5_error.avg
 		
 
     def test_teacher(self):
@@ -245,10 +249,10 @@ class Trainer(nn.Module):
         with torch.no_grad():
             for i, (images, labels) in enumerate(self.test_loader):
                 start_time = time.time()
-                data_time = start_time - end_time
+                # data_time = start_time - end_time
 
                 labels = labels.cuda()
-                if self.settings.tenCrop:
+                if self.settings.ten_crop:
                     image_size = images.size()
                     images = images.view(
                         image_size[0] * 10, image_size[1] / 10, image_size[2], image_size[3])
@@ -269,7 +273,7 @@ class Trainer(nn.Module):
                     if self.settings.nGPU == 1:
                         images = images.cuda()
 
-                    output = self.model_teacher(images)
+                    output = self.model_t(images)
 
                     loss = torch.ones(1)
                     self.mean_list.clear()

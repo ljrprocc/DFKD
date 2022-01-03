@@ -4,7 +4,7 @@ import numpy as np
 
 __all__ = ["data_parallel", "model2list", "list2sequential", "model2state_dict"]
 
-def data_parallel(model, ngpus, gpu0=0):
+def data_parallel(model, ngpus, gpu_list=None):
     """
     assign model to multi-gpu mode
     :params model: target model
@@ -14,8 +14,9 @@ def data_parallel(model, ngpus, gpu0=0):
     """
     if ngpus == 0:
         assert False, "only support gpu mode"
-    gpu_list = list(range(gpu0, gpu0 + ngpus))
-    assert torch.cuda.device_count() >= gpu0 + ngpus, "Invalid Number of GPUs"
+    gpu_list = [int(x) for x in gpu_list]
+    # gpu_list = list(range(gpu0, gpu0 + ngpus))
+    # assert torch.cuda.device_count() >= gpu0 + ngpus, "Invalid Number of GPUs"
     if isinstance(model, list):
         for i in range(len(model)):
             if ngpus >= 2:
