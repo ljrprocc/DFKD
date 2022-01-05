@@ -1,37 +1,37 @@
 # training setting
 start_epoch: 0
-n_epochs: 400
+n_epochs: 500
 network_s: resnet20_cifar10
 network: resnet56_cifar10
-warmup_epochs: 4
+warmup_epochs: 100
 root: /data/lijingru/cifar10/
-save_name: test2
-total_iters: 300
+save_name: two_stage_test1
+total_iters: 200
 print_freq: 100
 noise_scale: 1.0
 tb_logger: 'none'
 
-lr_s: 0.0001
+lr_s: 0.001
 weight_decay: 0.0001
 
 lr_g: 0.001
 beta_g1: 0.5
 beta_g2: 0.999
 
-batch_size: 256
+batch_size: 128
 num_workers: 8
 ten_crop: False
 nGPU: 1
 n_cls: 10
 
 alpha: 1.
-temperature: 10.
+temperature: 4.
 
 img_size: 32
-latent_dim: 64
+latent_dim: 128
 no_DM: True
 itermediate_dim: 256
 channels: 3
 
-random_embedding: False
+random_embedding: True
 set_tb_logger: True

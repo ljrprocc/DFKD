@@ -40,7 +40,7 @@ class Generator(nn.Module):
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.Conv2d(64, self.settings.channels, 3, stride=1, padding=1),
 			nn.Tanh(),
-			nn.BatchNorm2d(self.settings.channels, affine=False)
+			# nn.BatchNorm2d(self.settings.channels, affine=False)
 		)
 
 	def forward(self, z, labels, linear=None, z2=None):

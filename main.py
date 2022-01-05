@@ -15,6 +15,14 @@ from trainer import Trainer
 from tensorboardX import SummaryWriter
 import logging
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv2d') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm2d') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
+
 
 class Experiment:
     def __init__(self, opt, G):
@@ -86,6 +94,8 @@ class Experiment:
             if args.network_s in ['resnet20_cifar100', 'resnet20_cifar10']:
                 # self.model = ptcv_get_model(args.network_s, pretrained=True)
                 self.model = ptcv_get_model(args.network_s)
+                # self.model.apply(weights_init)
+                # print('********************')
                 self.model_t = ptcv_get_model(args.network, pretrained=True)
                 self.model_t.eval()
 
@@ -140,16 +150,16 @@ class Experiment:
         test_error, test_loss, test5_error = self.trainer.test_teacher()
         for epoch in range(self.start_epoch, self.n_epochs):
             self.epoch = epoch
-            if epoch < 4:
-                print('Unfreeze model')
-                self.unfreeze_model(self.model)
+            # if epoch < 4:
+            #     print('Unfreeze model')
+            #     self.unfreeze_model(self.model)
             train_error, train_loss, train5_error = self.trainer.train_loop(epoch=epoch)
-            self.freeze_model(self.model)
+            # self.freeze_model(self.model)
             if self.opt.dataset in ["cifar100","cifar10"]:
-                test_error, test_loss, test5_error = self.trainer.test_stu()
+                test_error, test_loss, test5_error = self.trainer.test_stu(log=True, epoch=epoch)
             elif self.opt.dataset in ["imagenet"]:
                 if epoch > self.opt.warmup_epochs - 2:
-                    test_error, test_loss, test5_error = self.trainer.test_stu()
+                    test_error, test_loss, test5_error = self.trainer.test_stu(log=True, epoch=epoch)
                 else:
                     test_error = 100
                     test5_error = 100

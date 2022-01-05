@@ -41,12 +41,19 @@ class Trainer(nn.Module):
         self.t_running_var = []
         self.fix_G = False
 
-        self.optimizer_S = torch.optim.Adam(
+        # self.optimizer_S = torch.optim.Adam(
+        #     params=self.model.parameters(),
+        #     lr=self.settings.lr_s,
+        #     betas=(0.9, 0.999),
+        #     eps=1e-5,
+        #     weight_decay=self.settings.weight_decay
+        # )
+        self.optimizer_S = torch.optim.SGD(
             params=self.model.parameters(),
             lr=self.settings.lr_s,
-            betas=(0.9, 0.999),
-            eps=1e-5,
-            weight_decay=self.settings.weight_decay
+            momentum=0.9,
+            weight_decay=self.settings.weight_decay,
+            nesterov=True
         )
 
         if optimizer_state is not None:
@@ -63,7 +70,7 @@ class Trainer(nn.Module):
         self.scheduler_G = ExponentialLR(optimizer=self.optimizer_G, gamma=0.9)
     
     def loss_fn_kd(self, logits, y, teacher_logits, linear=None):
-        criterion_d = nn.CrossEntropyLoss(reduction='none').cuda()
+        # criterion_d = nn.CrossEntropyLoss(reduction='none').cuda()
         kdloss = nn.KLDivLoss().cuda()
 
         alpha = self.settings.alpha
@@ -72,15 +79,17 @@ class Trainer(nn.Module):
         b = F.softmax(teacher_logits / t, dim=1)
         c = alpha * t * t
 
-        d = criterion_d(logits, y).mean()
+        # d = criterion_d(logits, y).mean()
+        d = (-(linear*self.log_soft(logits)).sum(1)).mean()
 
         l_kd = kdloss(a, b) * c + d
+        # print(kdloss(a, b) * c, d)
         return l_kd
 
     def hook_fn_forward(self, module, input, output):
         input = input[0]
         mean = input.mean(dim=[0,2,3])
-        var = torch.var(input, dim=[0,2,3], unbiased=True)
+        var = torch.var(input, dim=[0,2,3], unbiased=False)
 
         self.mean_list.append(mean)
         self.var_list.append(var)
@@ -113,9 +122,7 @@ class Trainer(nn.Module):
         fp_acc = AverageMeter()
 
         # Set training flag for the student model
-        self.model.eval()
-        self.model_t.eval()
-        self.G.train()
+        
 
         start_time = time.time()
         st = start_time
@@ -127,8 +134,13 @@ class Trainer(nn.Module):
                 if isinstance(m, nn.BatchNorm2d):
                     m.register_forward_hook(self.hook_fn_forward)
 
-        
+        self.scheduler_S.step()
+        self.scheduler_G.step()
         for i in range(iters):
+            
+            self.model.eval()
+            self.model_t.eval()
+            self.G.train()
             start_time = time.time()
             # data_time = start_time - end_time
             z = Variable(torch.randn(self.settings.batch_size, self.settings.latent_dim)).cuda()
@@ -154,9 +166,14 @@ class Trainer(nn.Module):
 
             loss_G = loss_one_hot + 0.1 * BNS_loss
             self.backward_G(loss_G)
-            output, loss_S = self.forward(images.detach(), logit_teacher.detach(), labels=labels)
+            
+            output, loss_S = self.forward(images.detach(), logit_teacher.detach(), labels=labels, linear=label_loss)
+            
 
             if epoch > self.settings.warmup_epochs:
+                self.model.train()
+                self.model_t.eval()
+                self.G.eval()
                 self.backward_S(loss_S)
 
             single_error, single_loss, single5_error = compute_singlecrop(outputs=output, labels=labels, loss=loss_S, top5_flag=True, mean_flag=True)
@@ -168,12 +185,16 @@ class Trainer(nn.Module):
             end_time = time.time()
 
             gt = labels.data.cpu().numpy()
-            d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
+            d_acc = np.mean(np.argmax(output.data.cpu().numpy(), 1) == gt)
+            
+
 
             fp_acc.update(d_acc)
 
             if i % self.settings.print_freq == 0:
                 print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %.6f] [Oe-hot loss: %.6f] [BNS_loss:%.6f] [S loss: %.6f] [Time: %.6f s]" % (epoch + 1, self.settings.n_epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), loss_S.item(), time.time() - st))
+                # print(np.argmax(logit_teacher.data.cpu().numpy(), 1), gt)
+                # print(top1_error.avg)
 
                 global_iter = epoch * iters + i
 
@@ -191,10 +212,12 @@ class Trainer(nn.Module):
                         self.tb_logger.add_scalar(tag, value, global_iter)
                     self.scalar_info = {}
 
+        
+
         return top1_error.avg, top1_loss.avg, top5_error.avg
 
 
-    def test_stu(self):
+    def test_stu(self, log=False, epoch=0):
         top1_error = AverageMeter()
         top1_loss = AverageMeter()
         top5_error = AverageMeter()
@@ -233,6 +256,10 @@ class Trainer(nn.Module):
 
         print( "Testing finished in %f s."%(time.time() - st))
         print( "Student Model Accuracy : %.4f%%" % (100.00-top1_error.avg))
+        if log:
+            self.tb_logger.add_scalar('test_top1_error', top1_error.avg, epoch)
+            self.tb_logger.add_scalar('test_top1_loss', top1_loss.avg, epoch)
+            self.tb_logger.add_scalar('test_top5_error', top5_error.avg, epoch)
         return top1_error.avg, top1_loss.avg, top5_error.avg
 		
 

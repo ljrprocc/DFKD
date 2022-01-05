@@ -1,1 +1,1 @@
-python main.py --gpu 2
+python main.py --gpu 6
