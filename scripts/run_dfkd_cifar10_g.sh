@@ -1,0 +1,1 @@
+python main.py --gpu 6 --stage train_g

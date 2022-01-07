@@ -10,7 +10,7 @@ from utils.os_use import add_dict
 from torch.backends import cudnn
 from pytorchcv.model_provider import get_model as ptcv_get_model
 from pytorchcv.generator import Generator, Generator_imagenet
-from dataloader import DataLoader
+from dataloader import DataLoader, get_train_loader
 from trainer import Trainer
 from tensorboardX import SummaryWriter
 import logging
@@ -142,8 +142,7 @@ class Experiment:
 
 
     def train(self):
-        best_top1 = 100
-        best_top5 = 100
+        
         st_time = time.time()
         best_ep = 0
 
@@ -185,6 +184,62 @@ class Experiment:
 
         return best_top1, best_top5
 
+    def train_two_stage(self):
+        # train_G
+        # best_top1 = 100
+        # best_top5 = 100
+        # st_time = time.time()
+        # best_ep = 0
+        self.train_G(self)
+        self.trainer.generate_batch(save_path=self.save_path, n=self.opt.s_iter, train_s=True)
+
+    def train_G(self):
+        for epoch in range(self.start_epoch, self.n_epochs):
+            self.trainer.train_G(epoch)
+            if epoch % self.opt.save_freq==0:
+                torch.save(self.trainer.G.state_dict(),f"{self.save_path}/generator_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}_epoch{epoch}.pt")
+        torch.save(self.trainer.G.state_dict(),f"{self.save_path}/generator_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt")
+
+    def generate_batch(self):
+        self.trainer.generate_batch(save_path=self.save_path, n=self.opt.s_iter, train_s=False)
+
+    def train_S(self):
+        best_ep = 0
+        best_top1 = 100
+        best_top5 = 100
+        st = time.time()
+        train_loader = get_train_loader(self.opt)
+        for i in range(self.opt.s_epochs):
+            self.trainer.train_stu(i, train_loader)
+            if self.opt.dataset in ["cifar100","cifar10"]:
+                test_error, test_loss, test5_error = self.trainer.test_stu(log=True, epoch=i)
+            elif self.opt.dataset in ["imagenet"]:
+                if i > self.opt.warmup_epochs - 2:
+                    test_error, test_loss, test5_error = self.trainer.test_stu(log=True, epoch=i)
+                else:
+                    test_error = 100
+                    test5_error = 100
+            else:
+                assert False, "invalid data set"
+            if best_top1 >= test_error:
+                best_ep = i+1
+                best_top1 = test_error
+                best_top5 = test5_error
+                print('Saving a best checkpoint ...')
+                torch.save(self.trainer.model.state_dict(),f"{self.save_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}_best.pt")
+            if i % self.save_freq == 0:
+                torch.save(self.trainer.model.state_dict(),f"{self.save_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}-{i}.pt")
+
+            self.logger.info("#==>Best Result of ep {:d} is: Top1 Error: {:f}, Top5 Error: {:f}, at ep {:d}".format(i+1, best_top1, best_top5, best_ep))
+            self.logger.info("#==>Best Result of ep {:d} is: Top1 Accuracy: {:f}, Top5 Accuracy: {:f} at ep {:d}".format(i+1 , 100 - best_top1, 100 - best_top5, best_ep))
+
+        torch.save(self.trainer.model.state_dict(),f"{self.save_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}_last.pt")
+        end_time = time.time()
+        time_interval = end_time - st
+        t_string = "Running Time is: " + str(datetime.timedelta(seconds=time_interval)) + "\n"
+        self.logger.info(t_string)
+
+
     def eval(self):
         weight_path = f"{self.opt.ckpt_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}.pt"
         self.trainer.model.load_state_dict(torch.load(weight_path))
@@ -197,6 +252,8 @@ if __name__ == "__main__":
     parser.add_argument('--eval', action="store_true", help='Flag for evaluation.')
     parser.add_argument('--freeze', action='store_true')
     parser.add_argument('--random_seed', type=int, default=1234, help='Manual random seed for random operation.')
+    parser.add_argument('--stage', type=str, default='joint', choices=['joint', 'two_stage', 'train_g', 'train_s', 'generate_batch'])
+    parser.add_argument('--df_folder', type=str, default=None, help='2nd stage root dir')
     args = parser.parse_args()
 
     with open(args.config_path, 'r') as f:
@@ -233,6 +290,16 @@ if __name__ == "__main__":
     if args.eval:
         exp.eval()
     else:
-        exp.train()
+        choice = args.stage
+        if choice == 'two_stage':
+            exp.train_two_stage()
+        elif choice == 'joint':
+            exp.train()
+        elif choice == 'train_g':
+            exp.train_G()
+        elif choice == 'generate_batch':
+            exp.generate_batch()
+        elif choice == 'train_s':
+            exp.train_S()
 
     

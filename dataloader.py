@@ -2,12 +2,32 @@ import os
 import torch
 import torch.utils.data as data
 import numpy as np
+from PIL import Image
 import torchvision
 import torchvision.datasets as dsets
 import torchvision.transforms as T
+import socket
 import struct
 
 __all__ = ["DataLoader", "PartDataLoader"]
+
+def get_data_folder(opt):
+    """
+    return server-dependent path to store the data
+    """
+    hostname = socket.gethostname()
+    if hostname.startswith('visiongpu'):
+        data_folder = '/data/vision/phillipi/rep-learn/datasets'
+    elif hostname.startswith('yonglong-home'):
+        data_folder = '/home/yonglong/Data/data'
+    else:
+        data_folder = opt.df_folder
+
+    if not os.path.isdir(data_folder):
+        os.makedirs(data_folder)
+    test_folder = '/data/lijingru/' + opt.dataset + '/'
+
+    return data_folder, test_folder
 
 class ImageLoader(data.Dataset):
     def __init__(self, root, transform=None, target_transform=None):
@@ -138,3 +158,47 @@ class DataLoader(object):
 												  pin_memory=True,
 												  num_workers=self.n_threads)
 		return None, test_loader
+
+
+class CIFAR100Gen(data.Dataset):
+    def __init__(self, root, transform=None, target_transform=None, return_target=False):
+        self.root = root
+        self.files = os.listdir(root)
+        self.transform = transform
+        self.target_transform = target_transform
+        self.return_target = return_target
+    
+    def __getitem__(self, idx):
+        f = os.path.join(self.root, self.files[idx])
+
+        img = Image.open(f)
+        if self.transform is not None:
+            img = self.transform(img)
+        
+        if self.return_target:
+            target = int(self.files[idx].split('_')[2])
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+            return img, target
+        else:
+            return img
+    
+    def __len__(self):
+        return len(self.files)
+
+
+def get_train_loader(opt):
+	data_folder, test_folder = get_data_folder(opt)
+	dataset = opt.dataset
+	if dataset == "cifar10":
+		norm_mean = [0.49139968, 0.48215827, 0.44653124]
+		norm_std = [0.24703233, 0.24348505, 0.26158768]
+	elif dataset == "cifar100":
+		norm_mean = [0.50705882, 0.48666667, 0.44078431]
+		norm_std = [0.26745098, 0.25568627, 0.27607843]
+	train_transform = T.Compose([
+		T.ToTensor(),
+		T.Normalize(norm_mean, norm_std)])
+	train_set = CIFAR100Gen(root=data_folder, transform=train_transform, return_target=True)
+	train_loader = data.DataLoader(train_set, batch_size=opt.batch_size, shuffle=True, num_workers=opt.num_workers)
+	return train_loader

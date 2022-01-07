@@ -1,6 +1,7 @@
 import torch.nn as nn
 import torch
 import sys
+import torch.nn.functional as F
 sys.path.append('..')
 
 from conditional_batchnorm import CategoricalConditionalBatchNorm2d
@@ -31,35 +32,39 @@ class Generator(nn.Module):
 
 		self.conv_blocks1 = nn.Sequential(
 			nn.Conv2d(128, 128, 3, stride=1, padding=1),
-			nn.BatchNorm2d(128, 0.8),
+			nn.BatchNorm2d(128),
 			nn.LeakyReLU(0.2, inplace=True),
 		)
 		self.conv_blocks2 = nn.Sequential(
 			nn.Conv2d(128, 64, 3, stride=1, padding=1),
-			nn.BatchNorm2d(64, 0.8),
+			nn.BatchNorm2d(64),
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.Conv2d(64, self.settings.channels, 3, stride=1, padding=1),
 			nn.Tanh(),
 			# nn.BatchNorm2d(self.settings.channels, affine=False)
 		)
 
-	def forward(self, z, labels, linear=None, z2=None):
-		if linear == None:
-			# print(self.label_emb(labels).shape,z.shape)
-			gen_input = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
+	def forward(self, z, labels):
+		# if linear == None:
+		# 	# print(self.label_emb(labels).shape,z.shape)
+		# 	gen_input = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
 
-			if not self.settings.no_DM:
-				gen_input = self.fc_reducer(gen_input)
+		# 	if not self.settings.no_DM:
+		# 		gen_input = self.fc_reducer(gen_input)
 
-		else:
-			embed_norm = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
+		# else:
+		# 	embed_norm = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
 
-			if not self.settings.no_DM:
-				gen_input = self.fc_reducer(embed_norm)
-			else:
-				gen_input = embed_norm
+		# 	if not self.settings.no_DM:
+		# 		gen_input = self.fc_reducer(embed_norm)
+		# 	else:
+		# 		gen_input = embed_norm
 
-			gen_input = (gen_input * linear.unsqueeze(2)).sum(dim=1)
+		# 	gen_input = (gen_input * linear.unsqueeze(2)).sum(dim=1)
+		gen_input = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
+
+		if not self.settings.no_DM:
+			gen_input = self.fc_reducer(gen_input)
 
 		out = self.l1(gen_input)
 		out = out.view(out.shape[0], 128, self.init_size, self.init_size)

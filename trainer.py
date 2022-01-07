@@ -6,9 +6,12 @@ from torch.optim.lr_scheduler import ExponentialLR
 from pytorchcv.models.diaresnet import DIALSTMCell
 from utils.model_transform import data_parallel
 from utils.compute import AverageMeter, compute_singlecrop, compute_tencrop
-from torch.autograd import Variable
+from torch.autograd import Variable, backward
 import torch.nn.functional as F
+import torchvision.utils as vutils
 import numpy as np
+import tqdm
+import os
 
 __all__ = ['Trainer']
 
@@ -116,6 +119,7 @@ class Trainer(nn.Module):
         self.optimizer_S.step()
     
     def train_loop(self, epoch):
+        # self.scalar_info.clear()
         top1_error = AverageMeter()
         top1_loss = AverageMeter()
         top5_error = AverageMeter()
@@ -185,9 +189,7 @@ class Trainer(nn.Module):
             end_time = time.time()
 
             gt = labels.data.cpu().numpy()
-            d_acc = np.mean(np.argmax(output.data.cpu().numpy(), 1) == gt)
-            
-
+            d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
 
             fp_acc.update(d_acc)
 
@@ -261,8 +263,134 @@ class Trainer(nn.Module):
             self.tb_logger.add_scalar('test_top1_loss', top1_loss.avg, epoch)
             self.tb_logger.add_scalar('test_top5_error', top5_error.avg, epoch)
         return top1_error.avg, top1_loss.avg, top5_error.avg
-		
 
+    def train_G(self, epoch):
+        
+        fp_acc = AverageMeter()
+
+        # Set training flag for the student model
+        start_time = time.time()
+        st = start_time
+
+        iters = self.settings.total_iters
+
+        if epoch == 0:
+            for m in self.model_t.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.register_forward_hook(self.hook_fn_forward)
+
+        self.scheduler_S.step()
+        self.scheduler_G.step()
+        for i in range(iters):
+            
+            # self.model.eval()
+            self.model_t.eval()
+            self.G.train()
+            start_time = time.time()
+            # data_time = start_time - end_time
+            z = Variable(torch.randn(self.settings.batch_size, self.settings.latent_dim)).cuda()
+            labels = Variable(torch.randint(0, self.settings.n_cls, (self.settings.batch_size, ))).cuda()
+            z = z.contiguous()
+            labels = labels.contiguous()
+            images = self.G(z, labels)
+            label_loss = Variable(torch.zeros(self.settings.batch_size, self.settings.n_cls)).cuda()
+            label_loss.scatter_(1, labels.unsqueeze(1), 1.0)
+
+            self.mean_list.clear()
+            self.var_list.clear()
+
+            logit_teacher = self.model_t(images)
+            loss_one_hot = (-(label_loss*self.log_soft(logit_teacher)).sum(dim=1)).mean()
+            
+            BNS_loss = torch.zeros(1).cuda()
+
+            for num in range(len(self.mean_list)):
+                BNS_loss += self.mse_loss(self.mean_list[num], self.t_running_mean[num]) + self.mse_loss(self.var_list[num], self.t_running_var[num])
+
+            BNS_loss = BNS_loss / len(self.mean_list)
+
+            loss_G = loss_one_hot + 0.1 * BNS_loss
+            gt = labels.data.cpu().numpy()
+            # print(logit_teacher.argmax(1))
+            d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
+            fp_acc.update(d_acc)
+
+            self.backward_G(loss_G)
+            if i % self.settings.print_freq == 0:
+                print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %.6f] [Oe-hot loss: %.6f] [BNS_loss:%.6f] [Time: %.6f s]" % (epoch + 1, self.settings.n_epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), time.time() - st))
+                # print(np.argmax(logit_teacher.data.cpu().numpy(), 1), gt)
+                # print(top1_error.avg)
+
+                global_iter = epoch * iters + i
+
+                self.scalar_info['accuracy every epoch'] = 100 * d_acc
+                self.scalar_info['G loss every epoch'] = loss_G
+                self.scalar_info['One-hot loss every epoch'] = loss_one_hot
+                if self.tb_logger is not None:
+                    for tag, value in list(self.scalar_info.items()):
+                        self.tb_logger.add_scalar(tag, value, global_iter)
+                    self.scalar_info = {}
+
+    def train_stu_loop(self, images, labels, i, n, st):
+        top1_error = AverageMeter()
+        top1_loss = AverageMeter()
+        top5_error = AverageMeter()
+        fp_acc = AverageMeter()
+        logit_teacher = self.model_t(images)
+        label_loss = Variable(torch.zeros(self.settings.batch_size, self.settings.n_cls)).cuda()
+        label_loss.scatter_(1, labels.unsqueeze(1), 1.0)
+        
+        output, loss_S = self.forward(images.detach(), logit_teacher, labels=labels, linear=label_loss)
+        print(loss_S)
+        self.backward_S(loss_S)
+        gt = labels.data.cpu().numpy()
+        d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
+
+        single_error, single_loss, single5_error = compute_singlecrop(outputs=output, labels=labels, loss=loss_S, top5_flag=True, mean_flag=True)
+
+        top1_error.update(single_error, images.size(0))
+        top1_loss.update(single_loss, images.size(0))
+        top5_error.update(single5_error, images.size(0))
+
+        fp_acc.update(d_acc)
+
+        if i % self.settings.print_freq:
+            top1_err, top1_ls, top5_err = self.test_stu(log=True, epoch=i)
+            print("[Iter %d/%d] [S loss: %.6f] [Train Stu Acc: %.4f%%] [Test top1 acc: %.4f%%] [Time: %.6f s] " % ( i+1, n, loss_S.item(), fp_acc.avg, 100 - top1_err, time.time() - st))
+
+        return top1_error.avg, top1_loss.avg, top5_error.avg
+
+    def generate_batch(self, n=100000, save_path=None, save=True, train_s=False):
+        self.model.train()
+        self.model_t.eval()
+        self.G.eval()
+        st = time.time()
+
+        for i in tqdm.tqdm(range(n)):         
+            with torch.no_grad():
+                z = torch.randn(1, self.settings.latent_dim).cuda()
+                labels = torch.randint(0, self.settings.n_cls, (1,)).cuda()
+                images = self.G(z, labels)
+                if save:
+                    if not os.path.exists('{}/save/'.format(save_path)):
+                        os.mkdir('{}/save/'.format(save_path))
+                    vutils.save_image(images, '{}/save/label_{}_id_{}.jpg'.format(save_path, labels.item(), i), normalize=True, nrow=1, padding=0, range=2)
+            if not train_s:
+                continue
+            top1_err, top1_ls, top5_err = self.train_stu_loop(images, labels, i, n, st)     
+        return top1_err, top1_ls, top5_err
+
+    def train_stu(self, epoch, train_loader):
+        st = time.time()
+        print('**********epoch {} / {}***********'.format(epoch, self.settings.n_epochs))
+        for i, (x, y) in enumerate(train_loader):
+            images = x.cuda()
+            labels = y.cuda()
+            n = len(train_loader)
+            top1_err, top1_ls, top5_err = self.train_stu_loop(images, labels, i, n, st) 
+
+        return top1_err, top1_ls, top5_err
+	
     def test_teacher(self):
         top1_error = AverageMeter()
         top1_loss = AverageMeter()
