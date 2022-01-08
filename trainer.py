@@ -73,7 +73,7 @@ class Trainer(nn.Module):
         self.scheduler_G = ExponentialLR(optimizer=self.optimizer_G, gamma=0.9)
     
     def loss_fn_kd(self, logits, y, teacher_logits, linear=None):
-        # criterion_d = nn.CrossEntropyLoss(reduction='none').cuda()
+        criterion_d = nn.CrossEntropyLoss(reduction='none').cuda()
         kdloss = nn.KLDivLoss().cuda()
 
         alpha = self.settings.alpha
@@ -82,8 +82,8 @@ class Trainer(nn.Module):
         b = F.softmax(teacher_logits / t, dim=1)
         c = alpha * t * t
 
-        # d = criterion_d(logits, y).mean()
-        d = (-(linear*self.log_soft(logits)).sum(1)).mean()
+        d = criterion_d(logits, y).mean()
+        # d = (-(linear*self.log_soft(logits)).sum(1)).mean()
 
         l_kd = kdloss(a, b) * c + d
         # print(kdloss(a, b) * c, d)
@@ -300,7 +300,9 @@ class Trainer(nn.Module):
             self.var_list.clear()
 
             logit_teacher = self.model_t(images)
-            loss_one_hot = (-(label_loss*self.log_soft(logit_teacher)).sum(dim=1)).mean()
+            loss_one_hot = nn.CrossEntropyLoss()(logit_teacher, labels)
+            l2 = torch.norm((images / 2 + 0.5).view(self.settings.batch_size, -1), dim=1).mean()
+            # loss_one_hot = (-(label_loss*self.log_soft(logit_teacher)).sum(dim=1)).mean()
             
             BNS_loss = torch.zeros(1).cuda()
 
@@ -309,7 +311,7 @@ class Trainer(nn.Module):
 
             BNS_loss = BNS_loss / len(self.mean_list)
 
-            loss_G = loss_one_hot + 0.1 * BNS_loss
+            loss_G = loss_one_hot + 0.1 * BNS_loss + 0.0001 * l2
             gt = labels.data.cpu().numpy()
             # print(logit_teacher.argmax(1))
             d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
@@ -317,7 +319,7 @@ class Trainer(nn.Module):
 
             self.backward_G(loss_G)
             if i % self.settings.print_freq == 0:
-                print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %.6f] [Oe-hot loss: %.6f] [BNS_loss:%.6f] [Time: %.6f s]" % (epoch + 1, self.settings.n_epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), time.time() - st))
+                print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %.6f] [Oe-hot loss: %.6f] [BNS_loss:%.6f] [l2norm loss: %.6f] [Time: %.6f s]" % (epoch + 1, self.settings.n_epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), l2.item(), time.time() - st))
                 # print(np.argmax(logit_teacher.data.cpu().numpy(), 1), gt)
                 # print(top1_error.avg)
 
@@ -341,7 +343,7 @@ class Trainer(nn.Module):
         label_loss.scatter_(1, labels.unsqueeze(1), 1.0)
         
         output, loss_S = self.forward(images.detach(), logit_teacher, labels=labels, linear=label_loss)
-        print(loss_S)
+        # print(loss_S)
         self.backward_S(loss_S)
         gt = labels.data.cpu().numpy()
         d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
@@ -354,9 +356,9 @@ class Trainer(nn.Module):
 
         fp_acc.update(d_acc)
 
-        if i % self.settings.print_freq:
+        if i % self.settings.print_freq == 0:
             top1_err, top1_ls, top5_err = self.test_stu(log=True, epoch=i)
-            print("[Iter %d/%d] [S loss: %.6f] [Train Stu Acc: %.4f%%] [Test top1 acc: %.4f%%] [Time: %.6f s] " % ( i+1, n, loss_S.item(), fp_acc.avg, 100 - top1_err, time.time() - st))
+            print("[Iter %d/%d] [S loss: %.6f] [Train Stu Acc: %.4f%%] [Test top1 acc: %.4f%%] [Time: %.6f s] " % ( i+1, n, loss_S.item(), fp_acc.avg*100, 100 - top1_err, time.time() - st))
 
         return top1_error.avg, top1_loss.avg, top5_error.avg
 
@@ -374,7 +376,7 @@ class Trainer(nn.Module):
                 if save:
                     if not os.path.exists('{}/save/'.format(save_path)):
                         os.mkdir('{}/save/'.format(save_path))
-                    vutils.save_image(images, '{}/save/label_{}_id_{}.jpg'.format(save_path, labels.item(), i), normalize=True, nrow=1, padding=0, range=2)
+                    vutils.save_image(images, '{}/save/label_{}_id_{}.jpg'.format(save_path, labels.item(), i), normalize=True, nrow=1, padding=0)
             if not train_s:
                 continue
             top1_err, top1_ls, top5_err = self.train_stu_loop(images, labels, i, n, st)     

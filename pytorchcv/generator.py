@@ -18,13 +18,13 @@ class Generator(nn.Module):
 		self.embed_normalizer = nn.BatchNorm1d(self.label_emb.weight.T.shape,affine=False,track_running_stats=False)
 
 		if not self.settings.no_DM:
-			self.fc_reducer = nn.Linear(in_features=self.label_emb.weight.shape[-1], out_features=self.settings.intermediate_dim)
+			self.fc_reducer = nn.Linear(in_features=self.label_emb.weight.shape[-1]*2, out_features=self.settings.intermediate_dim)
 
 			self.init_size = self.settings.img_size // 4
 			self.l1 = nn.Sequential(nn.Linear(self.settings.intermediate_dim, 128 * self.init_size ** 2))
 		else:
 			self.init_size = self.settings.img_size // 4
-			self.l1 = nn.Sequential(nn.Linear(self.settings.latent_dim, 128 * self.init_size ** 2))
+			self.l1 = nn.Sequential(nn.Linear(self.settings.latent_dim*2, 128 * self.init_size ** 2))
 
 		self.conv_blocks0 = nn.Sequential(
 			nn.BatchNorm2d(128),
@@ -41,7 +41,7 @@ class Generator(nn.Module):
 			nn.LeakyReLU(0.2, inplace=True),
 			nn.Conv2d(64, self.settings.channels, 3, stride=1, padding=1),
 			nn.Tanh(),
-			# nn.BatchNorm2d(self.settings.channels, affine=False)
+			nn.BatchNorm2d(self.settings.channels, affine=False)
 		)
 
 	def forward(self, z, labels):
@@ -61,7 +61,9 @@ class Generator(nn.Module):
 		# 		gen_input = embed_norm
 
 		# 	gen_input = (gen_input * linear.unsqueeze(2)).sum(dim=1)
-		gen_input = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
+		# gen_input = self.embed_normalizer(torch.add(self.label_emb(labels),self.settings.noise_scale*z).T).T 
+		gen_input = self.label_emb(labels)
+		gen_input = torch.cat((gen_input, z), -1)
 
 		if not self.settings.no_DM:
 			gen_input = self.fc_reducer(gen_input)

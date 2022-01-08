@@ -227,7 +227,7 @@ class Experiment:
                 best_top5 = test5_error
                 print('Saving a best checkpoint ...')
                 torch.save(self.trainer.model.state_dict(),f"{self.save_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}_best.pt")
-            if i % self.save_freq == 0:
+            if i % self.opt.save_freq == 0:
                 torch.save(self.trainer.model.state_dict(),f"{self.save_path}/student_model_{self.opt.dataset}-{self.opt.network}-w{self.opt.network_s}-{i}.pt")
 
             self.logger.info("#==>Best Result of ep {:d} is: Top1 Error: {:f}, Top5 Error: {:f}, at ep {:d}".format(i+1, best_top1, best_top5, best_ep))

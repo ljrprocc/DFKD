@@ -176,7 +176,7 @@ class CIFAR100Gen(data.Dataset):
             img = self.transform(img)
         
         if self.return_target:
-            target = int(self.files[idx].split('_')[2])
+            target = int(self.files[idx].split('_')[1])
             if self.target_transform is not None:
                 target = self.target_transform(target)
             return img, target

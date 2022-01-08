@@ -1,6 +1,6 @@
 # training setting
 start_epoch: 0
-n_epochs: 200
+n_epochs: 300
 s_epochs: 300
 network_s: resnet20_cifar10
 network: resnet56_cifar10
