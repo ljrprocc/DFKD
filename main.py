@@ -9,7 +9,7 @@ import time
 from utils.os_use import add_dict
 from torch.backends import cudnn
 from pytorchcv.model_provider import get_model as ptcv_get_model
-from pytorchcv.generator import Generator, Generator_imagenet
+from pytorchcv.generator import Generator, Generator_imagenet, GeneratorA
 from dataloader import DataLoader, get_train_loader
 from trainer import Trainer
 from tensorboardX import SummaryWriter
@@ -142,6 +142,9 @@ class Experiment:
 
 
     def train(self):
+        best_ep = 0
+        best_top1 = 100
+        best_top5 = 100
         
         st_time = time.time()
         best_ep = 0
@@ -154,6 +157,7 @@ class Experiment:
             #     self.unfreeze_model(self.model)
             train_error, train_loss, train5_error = self.trainer.train_loop(epoch=epoch)
             # self.freeze_model(self.model)
+
             if self.opt.dataset in ["cifar100","cifar10"]:
                 test_error, test_loss, test5_error = self.trainer.test_stu(log=True, epoch=epoch)
             elif self.opt.dataset in ["imagenet"]:
@@ -273,7 +277,8 @@ if __name__ == "__main__":
             weight_t = ptcv_get_model(args.network, pretrained=True).output.weight.detach()
             if args.random_embedding:
                 weight_t = None
-            generator = Generator(args, teacher_weight=weight_t, freeze=args.freeze)
+            # generator = Generator(args, teacher_weight=weight_t, freeze=args.freeze)
+            generator = GeneratorA(nz=args.latent_dim, nc=3, img_size=32, activation=torch.tanh)
 
         else:
             assert False, 'unsupport network: ' + args.network

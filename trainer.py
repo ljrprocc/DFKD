@@ -82,7 +82,8 @@ class Trainer(nn.Module):
         b = F.softmax(teacher_logits / t, dim=1)
         c = alpha * t * t
 
-        d = criterion_d(logits, y).mean()
+        # d = criterion_d(logits, y).mean()
+        d = 0.
         # d = (-(linear*self.log_soft(logits)).sum(1)).mean()
 
         l_kd = kdloss(a, b) * c + d
@@ -92,8 +93,8 @@ class Trainer(nn.Module):
     def hook_fn_forward(self, module, input, output):
         input = input[0]
         mean = input.mean(dim=[0,2,3])
-        var = torch.var(input, dim=[0,2,3], unbiased=False)
-
+        nch = input.shape[1]
+        var = input.permute(1, 0, 2, 3).contiguous().view([nch, -1]).var(1, unbiased=False)
         self.mean_list.append(mean)
         self.var_list.append(var)
 
@@ -147,21 +148,22 @@ class Trainer(nn.Module):
             self.G.train()
             start_time = time.time()
             # data_time = start_time - end_time
-            z = Variable(torch.randn(self.settings.batch_size, self.settings.latent_dim)).cuda()
-            labels = Variable(torch.randint(0, self.settings.n_cls, (self.settings.batch_size, ))).cuda()
-            z = z.contiguous()
-            labels = labels.contiguous()
-            images = self.G(z, labels)
-            label_loss = Variable(torch.zeros(self.settings.batch_size, self.settings.n_cls)).cuda()
-            label_loss.scatter_(1, labels.unsqueeze(1), 1.0)
+            z = torch.randn(self.settings.batch_size, self.settings.latent_dim).cuda()
+            labels = torch.randint(0, self.settings.n_cls, (self.settings.batch_size, )).cuda()
+            # z = z.contiguous()
+            # labels = labels.contiguous()
+            # images = self.G(z, labels)
+            images = self.G(z)
 
             self.mean_list.clear()
             self.var_list.clear()
 
             logit_teacher = self.model_t(images)
-            loss_one_hot = (-(label_loss*self.log_soft(logit_teacher)).sum(dim=1)).mean()
+            # loss_one_hot = nn.CrossEntropyLoss()(logit_teacher, labels)
+            loss_one_hot = torch.zeros(1).cuda()
             
-            BNS_loss = torch.zeros(1).cuda()
+            BNS_loss = 0.
+            # print(len(self.mean_list))
 
             for num in range(len(self.mean_list)):
                 BNS_loss += self.mse_loss(self.mean_list[num], self.t_running_mean[num]) + self.mse_loss(self.var_list[num], self.t_running_var[num])
@@ -170,28 +172,35 @@ class Trainer(nn.Module):
 
             loss_G = loss_one_hot + 0.1 * BNS_loss
             self.backward_G(loss_G)
+            self.model.train()
+            self.model_t.eval()
+            self.G.eval()
+            for j in range(self.settings.s_iters):
+                
+                z = torch.randn(self.settings.batch_size, self.settings.latent_dim).cuda()
+                images = self.G(z).detach()
+                # labels = torch.randint(0, self.settings.n_cls, (self.settings.batch_size, )).cuda()
+                # images = self.G(z, labels).detach()
+                with torch.no_grad():
+                    logit_teacher = self.model_t(images)
             
-            output, loss_S = self.forward(images.detach(), logit_teacher.detach(), labels=labels, linear=label_loss)
-            
+                output, loss_S = self.forward(images, logit_teacher, labels=0.)
 
-            if epoch > self.settings.warmup_epochs:
-                self.model.train()
-                self.model_t.eval()
-                self.G.eval()
                 self.backward_S(loss_S)
 
-            single_error, single_loss, single5_error = compute_singlecrop(outputs=output, labels=labels, loss=loss_S, top5_flag=True, mean_flag=True)
+                single_error, single_loss, single5_error = compute_singlecrop(outputs=output, labels=labels, loss=loss_S, top5_flag=True, mean_flag=True)
 
-            top1_error.update(single_error, images.size(0))
-            top1_loss.update(single_loss, images.size(0))
-            top5_error.update(single5_error, images.size(0))
+                top1_error.update(single_error, images.size(0))
+                top1_loss.update(single_loss, images.size(0))
+                top5_error.update(single5_error, images.size(0))
 
-            end_time = time.time()
+                end_time = time.time()
 
-            gt = labels.data.cpu().numpy()
-            d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
+                gt = labels.data.cpu().numpy()
+                d_acc = np.mean(np.argmax(logit_teacher.data.cpu().numpy(), 1) == gt)
 
-            fp_acc.update(d_acc)
+                fp_acc.update(d_acc)
+                # print(loss_S)
 
             if i % self.settings.print_freq == 0:
                 print("[Epoch %d/%d] [Batch %d/%d] [acc: %.4f%%] [G loss: %.6f] [Oe-hot loss: %.6f] [BNS_loss:%.6f] [S loss: %.6f] [Time: %.6f s]" % (epoch + 1, self.settings.n_epochs, i+1, iters, 100 * fp_acc.avg, loss_G.item(), loss_one_hot.item(), BNS_loss.item(), loss_S.item(), time.time() - st))
