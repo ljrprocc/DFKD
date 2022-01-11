@@ -1,1 +1,0 @@
-python main.py --gpu 6 --stage joint
