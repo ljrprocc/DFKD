@@ -105,26 +105,26 @@ def train(args, teacher, student, generator, device, optimizer, epoch, loss_r_fe
             optimizer_G.zero_grad()
             generator.train()
             #Get fake image from generator
-            # fake = generator(z, pre_x=args.approx_grad) # pre_x returns the output of G before applying the activation
+            fake = generator(z, pre_x=args.approx_grad) # pre_x returns the output of G before applying the activation
             # fake = generator(z, labels)
-            fake = generator(z)
+            # fake = generator(z)
 
             ## APPOX GRADIENT
-            # approx_grad_wrt_x, loss_G = estimate_gradient_objective(args, teacher, student, fake, 
-            #                                     epsilon = args.grad_epsilon, m = args.grad_m, num_classes=args.num_classes, 
-            #                                     device=device, pre_x=True)
+            approx_grad_wrt_x, loss_G = estimate_gradient_objective(args, teacher, student, fake, 
+                                                epsilon = args.grad_epsilon, m = args.grad_m, num_classes=args.num_classes, 
+                                                device=device, pre_x=True)
 
-            # fake.backward(approx_grad_wrt_x)
+            fake.backward(approx_grad_wrt_x)
 
             # ## For comparison, BNS, one-hot and l2norm
 
-            output_teachers = teacher(fake)
-            # loss_cls = torch.nn.CrossEntropyLoss()(output_teachers, labels)
-            loss_cls = 0.
-            rescale = [10] + [1. for _ in range(len(loss_r_feature_layers)-1)]
-            loss_r_feature = sum([mod.r_feature * rescale[idx] for (idx, mod) in enumerate(loss_r_feature_layers)])
-            loss_G = loss_cls + 0.1 * loss_r_feature
-            loss_G.backward()
+            # output_teachers = teacher(fake)
+            # # loss_cls = torch.nn.CrossEntropyLoss()(output_teachers, labels)
+            # loss_cls = 0.
+            # rescale = [10] + [1. for _ in range(len(loss_r_feature_layers)-1)]
+            # loss_r_feature = sum([mod.r_feature * rescale[idx] for (idx, mod) in enumerate(loss_r_feature_layers)])
+            # loss_G = loss_cls + 0.1 * loss_r_feature
+            # loss_G.backward()
 
                 
             optimizer_G.step()
