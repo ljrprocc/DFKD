@@ -91,7 +91,7 @@ class ResNet(nn.Module):
             self.in_planes = planes * block.expansion
         return nn.Sequential(*layers)
  
-    def forward(self, x, out_feature=False):
+    def forward(self, x, is_feat=False):
 
         if self.normalize:
             # Normalize according to the training data normalization statistics
@@ -106,7 +106,7 @@ class ResNet(nn.Module):
         out = F.avg_pool2d(out, 4)
         feature = out.view(out.size(0), -1)
         out = self.linear(feature)
-        if out_feature == False:
+        if not is_feat:
             return out
         else:
             return out,feature

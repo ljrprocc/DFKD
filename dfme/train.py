@@ -22,8 +22,9 @@ print("torch version", torch.__version__)
 
 def myprint(a):
     """Log the print statements"""
-    global file
-    print(a); file.write(a); file.write("\n"); file.flush()
+    # global file
+    print(a)
+    # print(a); file.write(a); file.write("\n"); file.flush()
 
 class DeepInversionFeatureHook():
     '''
@@ -51,7 +52,7 @@ class DeepInversionFeatureHook():
         self.hook.remove()
 
 
-def student_loss(args, s_logit, t_logit, return_t_logits=False):
+def student_loss(args, s_logit, t_logit, return_t_logits=False, label=None):
     """Kl/ L1 Loss for student"""
     print_logits =  False
     if args.loss == "l1":
@@ -64,6 +65,8 @@ def student_loss(args, s_logit, t_logit, return_t_logits=False):
         loss = loss_fn(s_logit, t_logit.detach(), reduction="batchmean")
     else:
         raise ValueError(args.loss)
+    if label is not None:
+        loss += nn.CrossEntropyLoss()(s_logit, label)
 
     if return_t_logits:
         return loss, t_logit.detach()
@@ -101,12 +104,12 @@ def train(args, teacher, student, generator, device, optimizer, epoch, loss_r_fe
         for _ in range(args.g_iter):
             #Sample Random Noise
             z = torch.randn((args.batch_size, args.nz)).to(device)
-            # labels = torch.randint(0, args.num_classes, (args.batch_size, )).to(device)
+            labels = torch.randint(0, args.num_classes, (args.batch_size, )).to(device)
             optimizer_G.zero_grad()
             generator.train()
             #Get fake image from generator
-            fake = generator(z, pre_x=args.approx_grad) # pre_x returns the output of G before applying the activation
-            # fake = generator(z, labels)
+            # fake = generator(z, pre_x=args.approx_grad) # pre_x returns the output of G before applying the activation
+            fake = generator(z, labels)
             # fake = generator(z)
 
             ## APPOX GRADIENT
@@ -134,8 +137,9 @@ def train(args, teacher, student, generator, device, optimizer, epoch, loss_r_fe
 
         for _ in range(args.d_iter):
             z = torch.randn((args.batch_size, args.nz)).to(device)
-            # labels = torch.randint(0, args.num_classes, (args.batch_size, )).to(device)
-            fake = generator(z).detach()
+            labels = torch.randint(0, args.num_classes, (args.batch_size, )).to(device)
+            # fake = generator(z).detach()
+            fake = generator(z, labels).detach()
             optimizer_S.zero_grad()
 
             with torch.no_grad(): 
@@ -153,7 +157,7 @@ def train(args, teacher, student, generator, device, optimizer, epoch, loss_r_fe
             s_logit = student(fake)
 
 
-            loss_S = student_loss(args, s_logit, t_logit)
+            loss_S = student_loss(args, s_logit, t_logit, label=labels)
             loss_S.backward()
             optimizer_S.step()
 
@@ -181,7 +185,7 @@ def train(args, teacher, student, generator, device, optimizer, epoch, loss_r_fe
             return 
 
 
-def test(args, student = None, generator = None, device = "cuda", test_loader = None, epoch=0):
+def test(args, student = None, generator = None, device = "cuda", test_loader = None, epoch=0, log=False):
     global file
     student.eval()
     generator.eval()
@@ -202,8 +206,9 @@ def test(args, student = None, generator = None, device = "cuda", test_loader = 
     myprint('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.4f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         accuracy))
-    with open(args.log_dir + "/accuracy.csv", "a") as f:
-        f.write("%d,%f\n"%(epoch, accuracy))
+    if log:
+        with open(args.log_dir + "/accuracy.csv", "a") as f:
+            f.write("%d,%f\n"%(epoch, accuracy))
     acc = correct/len(test_loader.dataset)
     return acc
 
@@ -397,8 +402,8 @@ def main():
     
     student = get_classifier(args.student_model, pretrained=False, num_classes=args.num_classes)
     
-    generator = network.gan.GeneratorA(nz=args.nz, nc=3, img_size=32, activation=args.G_activation)
-    # generator = network.gan.GeneratorC(nz=args.nz, nc=3, img_size=32)
+    # generator = network.gan.GeneratorA(nz=args.nz, nc=3, img_size=32, activation=args.G_activation)
+    generator = network.gan.GeneratorC(nz=args.nz, nc=3, img_size=32)
 
     
     student = student.to(device)

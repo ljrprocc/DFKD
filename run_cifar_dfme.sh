@@ -1,2 +1,2 @@
 cd dfme;
-python3 train.py --dataset cifar10 --ckpt /data/lijingru/dfme/dfme/checkpoint/cifar10-resnet34_8x.pt --device 6 --grad_m 1 --query_budget 20 --log_dir save_results/cifar10_6  --lr_G 5e-4 --student_model resnet18_8x --loss l1 --data_root /data/lijingru/cifar10/
+python3 train.py --dataset cifar10 --ckpt /data/lijingru/dfkd/dfme/checkpoint/cifar10-resnet34_8x.pt --device 6 --grad_m 1 --query_budget 20 --log_dir save_results/cifar10  --lr_G 5e-4 --student_model resnet18_8x --loss l1 --data_root /data/lijingru/cifar10/
