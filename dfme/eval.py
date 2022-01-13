@@ -26,7 +26,7 @@ def generate(teacher, student, generator, visualize=False, n_images=10000, test_
     for i in tqdm(range(n_iter), desc='Generation'):
         z = torch.randn(batch_size, nz).to(device)
         label = torch.randint(0, 10, (batch_size, )).to(device)
-        logit, x_feat = teacher(generator(z, label).detach(), is_feat=True)
+        logit, x_feat = student(generator(z, label).detach(), is_feat=True)
         # print(logit.shape, x_feat.shape)
         # label = logit.argmax(1)
         if visualize:
@@ -57,7 +57,7 @@ def generate(teacher, student, generator, visualize=False, n_images=10000, test_
     if visualize:
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
-        tsne = TSNE(n_components=2, n_iter=50000, init='pca', verbose=1)
+        tsne = TSNE(n_components=2, n_iter=100000, verbose=1)
         X_res = tsne.fit_transform(zs)
         # X_res = X_res.embedding_
         
@@ -68,7 +68,7 @@ def generate(teacher, student, generator, visualize=False, n_images=10000, test_
         pyplot.savefig('{}/tsne_gen.png'.format(save_dir))
         pyplot.close()
 
-        tsne_real = TSNE(n_components=2, n_iter=40000, init='pca', verbose=1)
+        tsne_real = TSNE(n_components=2, n_iter=20000, init='pca', verbose=1)
         X_real = tsne_real.fit_transform(x_reals)
         # X_real = X_real.embedding_
         pyplot.scatter(X_real[:, 0], X_real[:, 1], c=y_reals)
