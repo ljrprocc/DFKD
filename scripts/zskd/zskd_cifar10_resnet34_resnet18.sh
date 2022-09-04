@@ -1,0 +1,20 @@
+python datafree_kd.py \
+--method zskd \
+--dataset cifar10 \
+--batch_size 256 \
+--teacher resnet34 \
+--student resnet18 \
+--lr 0.1 \
+--epochs 200 \
+--kd_steps 400 \
+--ep_steps 400 \
+--g_steps 1000 \
+--lr_g 2 \
+--T 10 \
+--act 0 \
+--balance 0 \
+--gpu 6 \
+--seed 0 \
+--save_dir run/zskd \
+--log_tag zskd \
+--data_root ../cifar10/

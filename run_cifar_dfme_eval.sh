@@ -1,2 +1,0 @@
-cd dfme;
-python eval.py --device 6 --ckpt /data/lijingru/dfkd/dfme/checkpoint/cifar10-resnet34_8x.pt --data_root /data/lijingru/cifar10/ --dataset cifar10 --save_path save_results/tsne_1 --student_load_path /data/lijingru/dfkd/dfme/save_results/cifar10/checkpoint/student.pt

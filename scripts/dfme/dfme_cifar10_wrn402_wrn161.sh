@@ -1,0 +1,22 @@
+python datafree_kd.py \
+--method dfme \
+--dataset cifar10 \
+--batch_size 256 \
+--teacher wrn40_2 \
+--student wrn16_1 \
+--lr 0.1 \
+--epochs 210 \
+--kd_steps 5 \
+--ep_steps 400 \
+--g_steps 5 \
+--lr_g 1e-4 \
+--adv 0 \
+--T 20 \
+--bn 0 \
+--oh 1 \
+--act 0.001 \
+--balance 20 \
+--gpu 3 \
+--seed 0 \
+--data_root /data/lijingru/cifar10/ \
+--loss kl
