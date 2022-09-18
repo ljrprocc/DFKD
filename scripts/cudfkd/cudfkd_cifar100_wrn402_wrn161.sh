@@ -12,24 +12,25 @@ python datafree_kd.py \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \
---adv 0. \
+--adv 1. \
 --depth 2 \
 --T 2 \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 3 \
+--gpu 1 \
 --seed 0 \
 --bn 1 \
 --save_dir run/cudfkd_test \
---log_tag cudfkd_L2_line34_d_2 \
+--log_tag cudfkd_L2_non_gen_adv \
 --begin_fraction 0.2 \
 --end_fraction 0.75 \
---grad_adv 0.15 \
---data_root ../cifar100/ \
+--grad_adv 0.0 \
+--data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1 \
 --log_fidelity \
+--memory \
 --loss kl

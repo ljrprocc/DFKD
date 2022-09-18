@@ -5,5 +5,6 @@ from .base import BaseSynthesis
 from .zskd import ZSKDSynthesis
 from .dfme import DFMESynthesizer
 from .softtarget import SoftTargetSynthesizer
-from .cudfkd import ProbSynthesizer
+from .cudfkd import CuDFKDSynthesizer
 from .pretrained_G import PretrainedGenerativeSynthesizer
+from .improved_cudfkd import MHDFKDSynthesizer

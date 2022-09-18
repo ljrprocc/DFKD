@@ -1,5 +1,6 @@
 import argparse
 from math import gamma
+from multiprocessing import reduction
 import os
 import random
 import shutil
@@ -30,7 +31,7 @@ import torchvision.models as models
 parser = argparse.ArgumentParser(description='Data-free Knowledge Distillation')
 
 # Data Free
-parser.add_argument('--method', required=True, choices=['zskt', 'dfad', 'dafl', 'deepinv', 'dfq', 'cmi', 'zskd', 'dfme', 'softtarget', 'cudfkd', 'pretrained'])
+parser.add_argument('--method', required=True, choices=['zskt', 'dfad', 'dafl', 'deepinv', 'dfq', 'cmi', 'zskd', 'dfme', 'softtarget', 'cudfkd', 'pretrained', 'improved_cudfkd'])
 parser.add_argument('--adv', default=0, type=float, help='scaling factor for adversarial distillation')
 parser.add_argument('--adv_type',choices=['js', 'kl'], default='js', help='Adversirial training for which divergence.')
 parser.add_argument('--cond', action="store_true", help='using class-conditional generation strategy.')
@@ -107,6 +108,10 @@ parser.add_argument('--log_fidelity', action="store_true")
 parser.add_argument('--noisy', action="store_true")
 parser.add_argument('--memory', action="store_true")
 
+# Difficulty sampler hyperparameters
+parser.add_argument('--mk', default=0.2, type=float, help="minimal subset for the generated pesudosamples.")
+parser.add_argument('--gk', default=0.01, type=float, help="decay rate for k.")
+
 # pretrained generative model testing
 # parser.add_argument('--pretrained', action="store_true", help='Flag for whether use pretrained generative models')
 parser.add_argument('--pretrained_mode', type=str, default='gan', choices=['gan', 'vae', 'glow', 'diffusion', 'sde', 'ebm'])
@@ -150,7 +155,7 @@ parser.add_argument('-p', '--print_freq', default=0, type=int,
 parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     help='use pre-trained model')
 # Currcurilum Learning options
-parser.add_argument('--curr_option', type=str, default='spl')
+parser.add_argument('--curr_option', type=str, default='none')
 parser.add_argument('--lambda_0', type=float, default=1.)
 best_acc1 = 0
 best_agg1 = 0
@@ -392,13 +397,18 @@ def main_worker(gpu, ngpus_per_node, args):
         # for debug
         
         img_size = 32 if args.dataset.startswith('cifar') else 64
+        if args.curr_option == 'none':
+            reduct = 'batchmean'
+        else:
+            reduct = 'none'
         
         if args.loss == 'l1':
-            criterion = torch.nn.L1Loss()
+            criterion = torch.nn.L1Loss(reduction=reduct)
         elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss()
+            criterion = torch.nn.MSELoss(reduction=reduct)
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T)
+            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+            # criterion = datafree.criterions.KLDiv(T=args.T, reduction='batchmean')
         # t_criterion = datafree.criterions.KLDiv(T=args.T)
         if args.no_feature:
             L = 1
@@ -423,7 +433,7 @@ def main_worker(gpu, ngpus_per_node, args):
             tg = prepare_model(tg)
             G_list.append(tg)
             # E_list.append(E)
-        synthesizer = datafree.synthesis.ProbSynthesizer(
+        synthesizer = datafree.synthesis.CuDFKDSynthesizer(
             teacher=teacher,
             student=student,
             G_list=G_list,
@@ -446,6 +456,57 @@ def main_worker(gpu, ngpus_per_node, args):
             bn=args.bn,
             T=args.T,
             memory=args.memory
+        )
+    elif args.method == 'improved_cudfkd':
+        img_size = 32 if args.dataset.startswith('cifar') else 64
+
+        if args.curr_option == 'none':
+            reduct = 'batchmean'
+        else:
+            reduct = 'none'
+        
+        if args.loss == 'l1':
+            criterion = torch.nn.L1Loss(reduction=reduct)
+        elif args.loss == 'l2':
+            criterion = torch.nn.MSELoss(reduction=reduct)
+        else:
+            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+        nz=512 if args.dataset.startswith('cifar') else 1024
+        widen_factor = 1
+        if args.teacher.startswith('wrn'):
+            type = 'wider'
+            widen_factor = int(args.teacher.split('_')[-1])
+        else:
+            type = 'normal'
+        tg = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
+        tg = prepare_model(tg)
+        # G_list.append(tg)
+            # E_list.append(E)
+        synthesizer = datafree.synthesis.MHDFKDSynthesizer(
+            teacher=teacher,
+            student=student,
+            G_list=[tg],
+            nz=nz,
+            num_classes=num_classes,
+            img_size=img_size,
+            iterations=g_step,
+            lr_g=args.lr_g,
+            synthesis_batch_size=args.synthesis_batch_size,
+            sample_batch_size=args.batch_size,
+            save_dir=args.save_dir,
+            transform=ori_dataset.transform,
+            normalizer=args.normalizer,
+            device=args.gpu,
+            lmda_ent=args.lmda_ent,
+            adv=args.adv,
+            oh=args.oh,
+            act=args.act,
+            adv_type=args.adv_type,
+            bn=args.bn,
+            T=args.T,
+            memory=args.memory,
+            gk=args.gk,
+            mk=args.mk
         )
 
     elif args.method == 'pretrained':
@@ -668,6 +729,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         # for _ in range( args.ep_steps//args.kd_steps ): # total kd_steps < ep_steps
         for k in range( args.ep_steps//kd_steps[0] ):
+            # print(k)
             # two-stage
             # 1. Data synthesis
             vis_result = None
@@ -676,15 +738,18 @@ def main_worker(gpu, ngpus_per_node, args):
                 vis_result = synthesizer.synthesize() # g_steps
                 # 2. Knowledge distillation
                 # kd_steps
-                global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0))
+                global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0), warmup=epoch<int(args.epochs * args.begin_fraction))
                 if args.log_fidelity:
                     global_iter, avg_diff = global_iter
+                
                 # if l == 0:
                 #     vis_result = vis_results
 
-        if args.method == 'cudfkd':
-            if epoch  > int(args.epochs * args.begin_fraction) and epoch < int(args.epochs * args.end_fraction) and args.curr_option != 'none': 
-                synthesizer.adv += args.grad_adv
+        if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
+            synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
+        # exit(-1)
+        if args.memory:
+            synthesizer.update_loader(vis_result['synthetic'])
         
         if vis_result is not None:
             for vis_name, vis_image in vis_result.items():
@@ -739,7 +804,7 @@ def main_worker(gpu, ngpus_per_node, args):
             logger.info("Best Agreement@1: %.4f\tBest Prob Loyalty: %.4f"%(best_agg1, best_prob1))
 
 
-def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_iter=0, save=False):
+def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_iter=0, save=False, warmup=True):
     loss_metric = datafree.metrics.RunningLoss(datafree.criterions.KLDiv(reduction='sum'))
     acc_metric = datafree.metrics.TopkAccuracy(topk=(1,5))
     student, teacher = model
@@ -752,11 +817,16 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         logger = args.logger
     history = (args.method == 'deepinv') or (args.method == 'cmi') or (args.method == 'pretrained' and (args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'ebm'))
     for i in range(kd_step):
+        # print(i)
         loss_s = 0.0
-        
-        images = synthesizer.sample(l, history=history) if args.method == 'cudfkd' else synthesizer.sample()
-        
         if args.method == 'cudfkd':
+            images = synthesizer.sample(l, history=history)
+        elif args.method == 'improved_cudfkd':
+            images = synthesizer.sample(l, warmup=warmup)
+        else:
+            synthesizer.sample()
+        
+        if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             if args.dataset == 'cifar10':
                 alpha = 0.0001
             else:
@@ -779,19 +849,20 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         with args.autocast():
             with torch.no_grad():
                 t_out, t_feat = teacher(images, return_features=True)
-            if args.curr_option == 'none':
-                reduct = 'mean'
-            else:
-                reduct = 'none'
+            
             s_out = student(images.detach())
             loss_s = criterion(s_out, t_out.detach())
 
         avg_diff = 0
-        if reduct == 'none':
+        if args.curr_option != 'none':
+            real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            # real_loss_s = loss_s
             with torch.no_grad():
-                g,v = datafree.datasets.utils.curr_v(l=loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
-            loss_s = (v * loss_s).sum() + g
-            avg_diff = (v * loss_s).sum() / v.sum()   
+                g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
+
+            # print(real_loss_s.mean(), g.mean(), v.mean())
+            loss_s = (v * real_loss_s).sum() / args.batch_size
+            avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
         if args.fp16:
             scaler_s = args.scaler_s

@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import random
 import os
 import shutil
+import math
 
 from .base import BaseSynthesis
 import datafree
@@ -22,14 +23,15 @@ def reset_model(model):
             nn.init.normal_(m.weight, 1.0, 0.02)
             nn.init.constant_(m.bias, 0)
 
-class CuDFKDSynthesizer(BaseSynthesis):
-    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=None, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/probkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, only_feature=False, depth=2, adv_type='js', bn=0, T=5, memory=False):
-        super(CuDFKDSynthesizer, self).__init__(teacher, student)
+class MHDFKDSynthesizer(BaseSynthesis):
+    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, mk=0.2, depth=2, adv_type='js', bn=0, T=5, memory=False, strategy='MH', gk=0.9):
+        super(MHDFKDSynthesizer, self).__init__(teacher, student)
         self.save_dir = save_dir
         self.img_size = img_size 
         self.iterations = iterations
         self.lr_g = lr_g
         self.normalizer = normalizer
+        self.strategy = strategy
         # Avoid duplicated saving.
         # if os.path.exists(self.save_dir):
         #     shutil.rmtree(self.save_dir)
@@ -54,11 +56,13 @@ class CuDFKDSynthesizer(BaseSynthesis):
         
         self.oh = oh
         self.act = act
-        self.only_feature = only_feature
         self.T = T
         self.memory = memory
         # self._get_teacher_bn()
         self.optimizers = []
+        self.mk = mk
+        self.k = 1
+        self.gk = gk
         for i, G in enumerate(self.G_list):
             reset_model(G)
             optimizer = torch.optim.Adam(G.parameters(), self.lr_g, betas=[0.9, 0.99])
@@ -82,20 +86,32 @@ class CuDFKDSynthesizer(BaseSynthesis):
             g, v= gv
             v = v.to(self.device)
             g = g.to(self.device)
-
+        # z = torch.randn(size=(self.synthesis_batch_size, self.nz), device=self.device).requires_grad_()
+        # Analysis this framework.
+        # reset_model(G)
+        # optimizer = torch.optim.Adam([{'params': G.parameters()}, {'params': [z]}], self.lr_g, betas=[0.5, 0.999])
         for i in range(self.iterations[l]):
+            # if i % 50 == 0:
+            #     print(i)
+            
             z = torch.randn(self.synthesis_batch_size, self.nz).to(self.device)
            
             G.train()
-            self.optimizers[l].zero_grad()            
+            # optimizer.zero_grad()
+            self.optimizers[l].zero_grad()
+            
+            # Rec and variance
+            # mu_theta, logvar_theta = G(z1, l=l)
             mu_theta = G(z, l=l)
             samples = self.normalizer(mu_theta)
             x_inputs = self.normalizer(samples, reverse=True)
-            
             t_out, t_feat = self.teacher(samples, l=l, return_features=True)
+            # print(t_out)
             p = F.softmax(t_out / self.T, dim=1).mean(0)
             ent = -(p*p.log()).sum()
+            # if targets is None:
             loss_oh = F.cross_entropy( t_out, t_out.max(1)[1])
+            # loss_oh = F.cross_entropy( t_out, targets )
             loss_act = - t_feat.abs().mean()
             if self.bn > 0:
                 loss_bn = sum([h.r_feature for h in self.hooks])
@@ -119,23 +135,49 @@ class CuDFKDSynthesizer(BaseSynthesis):
                 if best_cost > loss.item() or best_inputs is None:
                     best_cost = loss.item()
                     best_inputs = mu_theta
+                    # print(best_inputs.max(), best_inputs.min())
                     
            
             loss.backward()
             self.optimizers[l].step()
+            # optimizer.step()
            
+        # exit(-1)
+        # self.student.train()
         return {'synthetic': best_inputs}
 
     @torch.no_grad()
-    def sample(self, l=0, history=False):
+    def sample(self, l=0, history=False, warmup=True):
         if not history:
             self.G_list[l].eval() 
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
+            if not warmup:
+                self.k = max(self.k * (1 - self.gk), self.mk)
+                all_repeats = math.ceil(1 / self.k)
+                samples = []
+                all_samples = torch.randn(0, )
+                i = 0
+                while all_samples.size(0) < self.sample_batch_size:
+                    t_out = self.teacher(self.normalizer(inputs))
+                    s_out = self.student(self.normalizer(inputs))
+                    loss = datafree.criterions.kldiv(s_out, t_out, T=self.T, reduction='none').sum(1)
+                    _, indice = torch.sort(loss)
+                    samples.append(inputs[indice[-int(self.k * self.synthesis_batch_size):]].cpu())
+                    all_samples = torch.cat(samples, 0)
+                    if i < all_repeats - 1:
+                        shape0 = math.ceil((self.sample_batch_size - all_samples.size(0)) / self.k)
+                        # print(shape0)
+                        z = torch.randn( size=(shape0, self.nz), device=self.device )
+                        inputs = self.G_list[l](z, l=l)
+                    i += 1
+                all_samples = torch.cat(samples, 0)
+                random_index = torch.randint(0, all_samples.size(0), (self.synthesis_batch_size, ))
+                inputs = all_samples[random_index].to(self.device)       
+
         else:
             inputs = self.data_iter.next()
-           
         return inputs
 
     def update_loader(self, best_inputs):

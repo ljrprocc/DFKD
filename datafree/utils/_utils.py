@@ -470,3 +470,22 @@ def copy_state_dict(G1, G2, l):
     G1.project.load_state_dict(G2.project.state_dict())
     G1.main[:-(4*l-2)].load_state_dict(G2.main[:-(4*l-2)].state_dict())
     G1.trans_convs[-l].load_state_dict(G2.trans_convs[-l].state_dict())
+
+def get_alpha_adv(epoch, args, ori_adv, type='constant'):
+    if epoch  >= int(args.epochs * args.begin_fraction) and epoch < int(args.epochs * args.end_fraction) and args.curr_option != 'none': 
+        if type == 'linear':
+            return ori_adv + (epoch - int(args.epochs * args.begin_fraction)) * args.grad_adv
+        elif type == 'interval':
+            return ori_adv + args.grad_adv
+        else:
+            return ori_adv
+    elif epoch >= int(args.epochs * args.end_fraction):
+        if type == 'linear':
+            return ori_adv + (int(args.epochs * args.end_fraction) - int(args.epochs * args.begin_fraction)) * args.grad_adv
+        elif type == 'interval':
+            return ori_adv + 2 * args.grad_adv
+        else:
+            return ori_adv
+    else:
+        return ori_adv
+        
