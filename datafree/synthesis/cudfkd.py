@@ -133,6 +133,8 @@ class CuDFKDSynthesizer(BaseSynthesis):
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
+            # print(inputs.mean())
+            # exit(-1)
         else:
             inputs = self.data_iter.next()
            

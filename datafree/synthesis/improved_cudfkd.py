@@ -1,9 +1,8 @@
+# from sre_parse import _OpGroupRefExistsType
 from torch import nn
 import torch
 import torch.nn.functional as F
-import random
-import os
-import shutil
+from torchvision import transforms
 import math
 
 from .base import BaseSynthesis
@@ -11,7 +10,9 @@ import datafree
 from datafree.hooks import DeepInversionHook
 from datafree.utils import ImagePool, DataIter, clip_images
 from datafree.criterions import jsdiv, kldiv
-from datafree.datasets.utils import curr_v, lambda_scheduler  
+from kornia import augmentation
+import numpy as np
+
 
 def reset_model(model):
     for m in model.modules():
@@ -22,6 +23,7 @@ def reset_model(model):
         if isinstance(m, (nn.BatchNorm2d)):
             nn.init.normal_(m.weight, 1.0, 0.02)
             nn.init.constant_(m.bias, 0)
+
 
 class MHDFKDSynthesizer(BaseSynthesis):
     def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, mk=0.2, depth=2, adv_type='js', bn=0, T=5, memory=False, strategy='MH', gk=0.9):
@@ -63,6 +65,11 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.mk = mk
         self.k = 1
         self.gk = gk
+        self.aug = transforms.Compose([
+            augmentation.RandomCrop(size=[img_size, img_size], padding=4),
+            augmentation.RandomHorizontalFlip(),
+            normalizer,
+        ])
         for i, G in enumerate(self.G_list):
             reset_model(G)
             optimizer = torch.optim.Adam(G.parameters(), self.lr_g, betas=[0.9, 0.99])
@@ -153,28 +160,53 @@ class MHDFKDSynthesizer(BaseSynthesis):
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
+            # print(inputs)
+            # exit(-1)
             if not warmup:
                 self.k = max(self.k * (1 - self.gk), self.mk)
-                all_repeats = math.ceil(1 / self.k)
+                # # Choose top-k ratio subset and fill out for length self.synthesis_bs
+                # all_repeats = math.ceil(1 / self.k)
                 samples = []
-                all_samples = torch.randn(0, )
-                i = 0
-                while all_samples.size(0) < self.sample_batch_size:
-                    t_out = self.teacher(self.normalizer(inputs))
-                    s_out = self.student(self.normalizer(inputs))
-                    loss = datafree.criterions.kldiv(s_out, t_out, T=self.T, reduction='none').sum(1)
-                    _, indice = torch.sort(loss)
-                    samples.append(inputs[indice[-int(self.k * self.synthesis_batch_size):]].cpu())
-                    all_samples = torch.cat(samples, 0)
-                    if i < all_repeats - 1:
-                        shape0 = math.ceil((self.sample_batch_size - all_samples.size(0)) / self.k)
-                        # print(shape0)
-                        z = torch.randn( size=(shape0, self.nz), device=self.device )
-                        inputs = self.G_list[l](z, l=l)
-                    i += 1
+                # all_samples = torch.randn(0, )
+                # i = 0
+                t_out = self.teacher(self.normalizer(inputs))
+                s_out = self.student(self.normalizer(inputs))
+                loss = datafree.criterions.kldiv(s_out, t_out, T=self.T, reduction='none').sum(1)
+                _, indice = torch.sort(loss)
+                
+                #     samples.append(inputs[indice[-int(self.k * self.synthesis_batch_size):]].cpu())
+                #     all_samples = torch.cat(samples, 0)
+                #     if i < all_repeats - 1:
+                #         shape0 = math.ceil((self.sample_batch_size - all_samples.size(0)) / self.k)
+                #         # print(shape0)
+                #         z = torch.randn( size=(shape0, self.nz), device=self.device )
+                #         inputs = self.G_list[l](z, l=l)
+                #     i += 1
+                # all_samples = torch.cat(samples, 0)
+                # random_index = torch.randint(0, all_samples.size(0), (self.synthesis_batch_size, ))
+                # # print(inputs[indice])
+                # inputs = all_samples[random_index].to(self.device)
+                # print(all_samples.size(0))
+                # exit(-1)
+                # print(inputs.mean(), inputs.max(), inputs.min())
+                # Choose top-k ratio subset
+                # random_index = torch.randint(0, self.synthesis_batch_size, (int(self.synthesis_batch_size * self.k), ))
+                # inputs = inputs[random_index]
+                selected_index = indice[-int(self.k * self.synthesis_batch_size):]
+                samples.append(inputs[selected_index].cpu())
                 all_samples = torch.cat(samples, 0)
-                random_index = torch.randint(0, all_samples.size(0), (self.synthesis_batch_size, ))
-                inputs = all_samples[random_index].to(self.device)       
+                while all_samples.size(0) < self.synthesis_batch_size:
+                    new_samples = self.aug(all_samples)
+                    samples.append(new_samples)
+                    all_samples = torch.cat(samples, 0)
+                # all_samples = torch.cat(samples, 0)
+                random_index = np.random.choice(all_samples.size(0), self.synthesis_batch_size, replace=False)
+                random_index = torch.LongTensor(random_index)
+                inputs = all_samples[random_index].to(self.device)
+                # print(inputs.mean())
+                # exit(-1)
+                # inputs = inputs[selected_index]
+                # print(inputs.shape)
 
         else:
             inputs = self.data_iter.next()

@@ -861,7 +861,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                 g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
             # print(real_loss_s.mean(), g.mean(), v.mean())
-            loss_s = (v * real_loss_s).sum() / args.batch_size
+            loss_s = (v * real_loss_s).sum() / images.size(0)
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
         if args.fp16:
