@@ -19,11 +19,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 0 \
+--gpu 5 \
 --seed 0 \
 --bn 1 \
---save_dir run/resample_retest_resample1 \
---log_tag resample_retest_resample1 \
+--save_dir run/cr2_nonlabel \
+--log_tag cr2_nonlabel \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -31,6 +31,4 @@ python datafree_kd.py \
 --lambda_0 2.0 \
 --log_fidelity \
 --memory \
---mk 0.5 \
---gk 0.00001 \
 --loss kl

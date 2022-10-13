@@ -16,6 +16,50 @@ import numpy as np
 from datafree.models.rl import Environment
 from datafree.models.rl import Actor, Critic
 
+def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu'):
+    batch_size = anchor.size(0)
+    with torch.no_grad():
+        pseudo_label, anchor_t_out = teacher(anchor.to(device).detach(), return_features=True)
+        pseudo_label = pseudo_label.argmax(1)
+    # loss = 0.
+    pos_loss = 0.
+    neg_loss = 0.
+    if ds == 'cifar10':
+        # for i in range(batch_size):
+        #     this_anchor = anchor_t_out[i].unsqueeze(0)
+        #     pos_features = t_out[pseudo_label[i] == logit_t.argmax(1)]
+        #     neg_features = t_out[pseudo_label[i] != logit_t.argmax(1)]
+        #     d_pos = torch.mm(this_anchor, pos_features.T)
+        #     d_neg = torch.mm(this_anchor, neg_features.T)
+        #     # Get positive DA index
+        #     p_pos = torch.softmax(d_pos / tau, dim=1)
+        #     p_da_pos = torch.quantile(p_pos, q=hard_factor, dim=1).item()
+        #     l_pos = torch.sum(p_pos * torch.log(p_pos / p_da_pos))
+        #     # Get Negative DA index
+        #     p_neg = torch.softmax(d_neg / tau, dim=1)
+        #     p_da_neg = torch.quantile(p_neg, q=1-hard_factor, dim=1).item()
+        #     l_neg = torch.sum(p_neg * torch.log(p_neg / p_da_neg))
+        #     pos_loss += l_pos
+        #     neg_loss += l_neg
+        d = torch.mm(anchor_t_out, t_out.T)
+        N_an, N_batch = d.size()
+        # positive_negative_border = torch.quantile(d, q=0.1, dim=1)
+        # d_pos = d[:, d <= positive_negative_border]
+        # d_neg = d[:, d > positive_negative_border]
+        sorted_d, indice_d = torch.sort(d, dim=1)
+        d_pos = sorted_d[:, :int(0.1 * N_batch)]
+        d_neg = sorted_d[:, int(0.1 * N_batch):]
+        # Get positive DA index
+        p_pos = torch.softmax(d_pos / tau, dim=1)
+        p_da_pos = torch.quantile(p_pos, q=hard_factor, dim=1).unsqueeze(1)
+        pos_loss = torch.sum(p_pos * torch.log(p_pos / p_da_pos), dim=1).mean().abs()
+        # Get Negative DA index
+        p_neg = torch.softmax(d_neg / tau, dim=1)
+        p_da_neg = torch.quantile(p_neg, q=1-hard_factor, dim=1).unsqueeze(1)
+        neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg), dim=1).mean().abs()
+
+        # print(pos_loss, neg_loss)
+        return pos_loss+neg_loss, pos_loss, neg_loss
 
 def reset_model(model):
     for m in model.modules():
@@ -29,7 +73,7 @@ def reset_model(model):
 
 
 class MHDFKDSynthesizer(BaseSynthesis):
-    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, mk=0.2, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, gk=0.9, rl_iters=3):
+    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, mk=0.2, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, gk=0.9, tau=10, hard=1.0):
         super(MHDFKDSynthesizer, self).__init__(teacher, student)
         self.save_dir = save_dir
         self.img_size = img_size 
@@ -69,10 +113,12 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.mk = mk
         self.k = 1
         self.gk = gk
+        self.tau = tau
+        self.hard = hard
         # Reinforcement settings
-        self.rl_iters = rl_iters
-        self.actor = Actor(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=1).to(device)
-        self.critic = Critic(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=synthesis_batch_size).to(device)
+        # self.rl_iters = rl_iters
+        # self.actor = Actor(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=1).to(device)
+        # self.critic = Critic(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=synthesis_batch_size).to(device)
         # self.env = Environment(models=(self.teacher, self.student, G_list[0]), evaluator=evaluator, batch_size=synthesis_batch_size, latent_dim=nz, device=device)
         # self.aug = transforms.Compose([
         #     augmentation.RandomCrop(size=[img_size, img_size], padding=4),
@@ -89,13 +135,10 @@ class MHDFKDSynthesizer(BaseSynthesis):
             if isinstance(m, nn.BatchNorm2d):
                 self.hooks.append(DeepInversionHook(m))
 
-        # assert len(self.hooks)>0, 'input model should contains at least one BN layer for DeepInversion and Probablistic KD.'
 
-    def synthesize(self, l=0, gv=None):
+    def synthesize(self, l=0, gv=None, hard_factor=0., warmup=False):
         self.student.eval()
         self.teacher.eval()
-        self.actor.eval()
-        self.critic.eval()
         # optimizers = []
         G = self.G_list[l]
         best_cost = 9999999
@@ -148,7 +191,15 @@ class MHDFKDSynthesizer(BaseSynthesis):
             else:
                 loss_adv = torch.zeros(1).to(self.device)
             
-            loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
+            # After Warmup, should include the following positive-negative pairs objectives.
+            # Anchor sampling:
+            if not warmup and self.memory:
+                anchor = self.data_iter.next()
+                loss_hard, loss_pos, loss_neg = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
+                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard
+            else:
+                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
+            
             with torch.no_grad():
                 if best_cost > loss.item() or best_inputs is None:
                     best_cost = loss.item()
@@ -158,10 +209,11 @@ class MHDFKDSynthesizer(BaseSynthesis):
            
             loss.backward()
             self.optimizers[l].step()
-            self.x = best_inputs
+            # self.x = best_inputs
             # optimizer.step()
+            # print(best_inputs.shape)
 
-        if self.memory:
+        if self.memory and warmup:
             self.update_loader(best_inputs=best_inputs)
            
         # exit(-1)

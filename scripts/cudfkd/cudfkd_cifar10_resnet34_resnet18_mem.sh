@@ -1,7 +1,7 @@
 python datafree_kd.py \
 --method cudfkd \
 --dataset cifar10 \
---batch_size 768 \
+--batch_size 256 \
 --teacher resnet34 \
 --student resnet18 \
 --lr 0.1 \
@@ -21,15 +21,16 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 0 \
+--gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/cudfkd_retest \
---log_tag cudfkd_retest \
+--save_dir run/cudfkd_retest2 \
+--log_tag cudfkd_retest2 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 2.0 \
 --log_fidelity \
+--memory \
 --loss kl

@@ -123,7 +123,9 @@ class CuDFKDSynthesizer(BaseSynthesis):
            
             loss.backward()
             self.optimizers[l].step()
-           
+            if self.memory:
+                self.update_loader(best_inputs=best_inputs)
+                
         return {'synthetic': best_inputs}
 
     @torch.no_grad()

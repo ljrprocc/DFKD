@@ -402,9 +402,17 @@ class ImagePool(object):
         self.root = os.path.abspath(root)
         os.makedirs(self.root, exist_ok=True)
         if not save:
-            self.datas = []
+            self.datas = self._init_buffer()
         self._idx = 0
         self.save = save
+
+    def _init_buffer(self):
+        if os.path.exists(self.root + '/buffer.npy'):
+            buffer = np.load(self.root + '/buffer.npy')
+            buffer = [Image.fromarray(x) for x in buffer]
+        else:
+            buffer = []
+        return buffer
 
     def add(self, imgs, targets=None):
         # print(imgs.shape)
@@ -414,18 +422,22 @@ class ImagePool(object):
             # print(imgs.detach().cpu().clamp_(0,1).permute(0,2,3,1).numpy()[0].shape)
             x = [Image.fromarray(w)  for w in (imgs.detach().cpu().clamp_(0,1).permute(0,2,3,1).numpy()*255).astype(np.uint8)]
             self.datas.extend(x)
+            # print(len(self.datas))
         # self.datas.append(Image.fromarray(imgs.detach().cpu().permute()))
         self._idx+=1
 
-    def visualize(self, batch_size):
-        idx = torch.randint(0, len(self.data), (batch_size,))
-        imgs = []
+    def save_buffer(self):
+        save_x = [np.asarray(x) for x in self.datas]
+        numpy_x = np.stack(save_x, 0)
+        np.save( os.path.join(self.root, 'buffer.npy'), numpy_x)
 
-    def get_dataset(self, transform=None, labeled=True):
+    def get_dataset(self, transform=None):
         if self.save:
             return UnlabeledImageDataset(self.root, transform=transform)
         else:
-            return UnlabelBufferDataset(self.datas, transform=transform)
+            dst = UnlabelBufferDataset(self.datas, transform=transform)
+        
+            return dst
 
 class DataIter(object):
     def __init__(self, dataloader):
@@ -441,8 +453,10 @@ class DataIter(object):
         return data
 
 class UnlabelBufferDataset(Dataset):
-    def __init__(self, buffer, transform):
-        self.buffer = buffer
+    def __init__(self, data, transform):
+
+        self.buffer = data
+
         self.transform = transform
         # print(self.transform)
 

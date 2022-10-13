@@ -420,7 +420,6 @@ def main_worker(gpu, ngpus_per_node, args):
             args.start_l = 0
             args.g_steps *= L
         assert args.no_feature or len(kd_steps) == L, 'error'
-        args.L = L
         for l in range(L):
             nz=512 if args.dataset.startswith('cifar') else 1024
             widen_factor = 1
@@ -490,7 +489,7 @@ def main_worker(gpu, ngpus_per_node, args):
             num_classes=num_classes,
             img_size=img_size,
             iterations=g_step,
-            lr_g=args.lr_g,
+            lr_g=args.lr_g, 
             synthesis_batch_size=args.synthesis_batch_size,
             sample_batch_size=args.batch_size,
             save_dir=args.save_dir,
@@ -506,7 +505,7 @@ def main_worker(gpu, ngpus_per_node, args):
             T=args.T,
             memory=args.memory,
             gk=args.gk,
-            mk=args.mk
+            mk=args.mk,
         )
 
     elif args.method == 'pretrained':
@@ -734,8 +733,11 @@ def main_worker(gpu, ngpus_per_node, args):
             # 1. Data synthesis
             vis_result = None
             for l in range(L):
-                # if args.method != 'pretrained':
-                vis_result = synthesizer.synthesize() # g_steps
+                if args.method != 'improved_cudfkd':
+                    vis_result = synthesizer.synthesize() # g_steps
+                else:
+                    hard_factor = max(0, epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction))
+                    vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=epoch < int(args.begin_fraction * args.epochs))
                 # 2. Knowledge distillation
                 # kd_steps
                 global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0), warmup=epoch<int(args.epochs * args.begin_fraction))
@@ -748,8 +750,8 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
         # exit(-1)
-        if args.memory:
-            synthesizer.update_loader(vis_result['synthetic'])
+        # if args.memory:
+        #     synthesizer.update_loader(vis_result['synthetic'])
         
         if vis_result is not None:
             for vis_name, vis_image in vis_result.items():
@@ -759,6 +761,9 @@ def main_worker(gpu, ngpus_per_node, args):
         student.eval()
         eval_results = evaluator(student, device=args.gpu)
         (acc1, acc5), val_loss = eval_results['Acc'], eval_results['Loss']
+
+        if args.method.endswith('cudfkd'):
+            synthesizer.data_pool.save_buffer()
 
         if args.log_fidelity:
             eval_f = loyalty_measurer(teacher, student, device=args.gpu)
@@ -832,6 +837,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             else:
                 alpha = 0.00002
             lamda = datafree.datasets.utils.lambda_scheduler(args.lambda_0, global_iter, alpha=alpha)
+            # synthesizer.data_pool.save_buffer()
 
         if args.method == 'pretrained' and i == 0 and save:
             if args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'ebm' or args.pretrained_mode == 'sde':
@@ -856,12 +862,13 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         avg_diff = 0
         if args.curr_option != 'none':
             real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
-            # real_loss_s = loss_s
-            with torch.no_grad():
-                g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
+            
+            if args.curr_option.startswith('curr'):
+                with torch.no_grad():
+                    g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
             # print(real_loss_s.mean(), g.mean(), v.mean())
-            loss_s = (v * real_loss_s).sum() / images.size(0)
+            loss_s = (v * real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
         if args.fp16:
