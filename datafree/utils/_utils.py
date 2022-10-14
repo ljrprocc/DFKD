@@ -397,6 +397,33 @@ class LabeledImageDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.images)
 
+class FeaturePool(object):
+    def __init__(self, root):
+        self.root = os.path.abspath(root)
+        os.makedirs(self.root, exist_ok=True)
+        self.datas = self._init_buffer()
+        self._idx = 0
+
+    def _init_buffer(self):
+        if os.path.exists(self.root + '/buffer.pt'):
+            buffer = torch.load(self.root + '/buffer.pt', map_location='cpu')
+            buffer = list(buffer)
+        else:
+            buffer = []
+        return buffer
+
+    def add(self, feat):
+        self.datas.append(feat.detach().cpu())
+        self._idx+=1
+
+    def save_buffer(self):
+        save_x = torch.stack(self.data, 0)
+        torch.save(save_x, os.path.join(self.root, 'buffer.pt'))
+
+    def get_dataset(self):
+        dst = FeatureMemory(self.datas)
+        return dst
+
 class ImagePool(object):
     def __init__(self, root, save=False):
         self.root = os.path.abspath(root)
@@ -466,6 +493,17 @@ class UnlabelBufferDataset(Dataset):
 
     def __len__(self):
         return len(self.buffer)
+
+
+class FeatureMemory(Dataset):
+    def __init__(self, data):
+        self.buffer = data
+
+    def __len__(self):
+        return len(self.buffer)
+
+    def __getitem__(self, index):
+        return self.buffer[index]
 
 
 @contextmanager

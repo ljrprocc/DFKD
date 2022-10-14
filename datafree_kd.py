@@ -110,7 +110,7 @@ parser.add_argument('--memory', action="store_true")
 
 # Difficulty sampler hyperparameters
 parser.add_argument('--mk', default=0.2, type=float, help="minimal subset for the generated pesudosamples.")
-parser.add_argument('--gk', default=0.01, type=float, help="decay rate for k.")
+parser.add_argument('--gk', default=0.0, type=float, help="decay rate for k.")
 
 # pretrained generative model testing
 # parser.add_argument('--pretrained', action="store_true", help='Flag for whether use pretrained generative models')
@@ -732,26 +732,23 @@ def main_worker(gpu, ngpus_per_node, args):
             # two-stage
             # 1. Data synthesis
             vis_result = None
+            warmup = False
             for l in range(L):
                 if args.method != 'improved_cudfkd':
                     vis_result = synthesizer.synthesize() # g_steps
                 else:
+                    warmup = epoch < int(args.begin_fraction * args.epochs)
                     hard_factor = max(0, epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction))
-                    vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=epoch < int(args.begin_fraction * args.epochs))
+                    vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=warmup)
                 # 2. Knowledge distillation
                 # kd_steps
-                global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0), warmup=epoch<int(args.epochs * args.begin_fraction))
+                global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0), warmup=epoch < int(args.begin_fraction * args.epochs))
                 if args.log_fidelity:
                     global_iter, avg_diff = global_iter
                 
-                # if l == 0:
-                #     vis_result = vis_results
 
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
-        # exit(-1)
-        # if args.memory:
-        #     synthesizer.update_loader(vis_result['synthetic'])
         
         if vis_result is not None:
             for vis_name, vis_image in vis_result.items():
@@ -762,7 +759,7 @@ def main_worker(gpu, ngpus_per_node, args):
         eval_results = evaluator(student, device=args.gpu)
         (acc1, acc5), val_loss = eval_results['Acc'], eval_results['Loss']
 
-        if args.method.endswith('cudfkd'):
+        if args.method.endswith('cudfkd') and warmup:
             synthesizer.data_pool.save_buffer()
 
         if args.log_fidelity:
@@ -867,7 +864,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                 with torch.no_grad():
                     g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
-            # print(real_loss_s.mean(), g.mean(), v.mean())
+            print(real_loss_s.mean(), g.mean(), v.mean())
             loss_s = (v * real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()

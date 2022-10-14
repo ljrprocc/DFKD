@@ -3,24 +3,16 @@ from distutils.command.config import LANG_EXT
 from torch import nn
 import torch
 import torch.nn.functional as F
-from torchvision import transforms
-import math
 
 from .base import BaseSynthesis
-import datafree
 from datafree.hooks import DeepInversionHook
-from datafree.utils import ImagePool, DataIter, clip_images
+from datafree.utils import ImagePool, DataIter, FeaturePool
 from datafree.criterions import jsdiv, kldiv
-from kornia import augmentation
-import numpy as np
-from datafree.models.rl import Environment
-from datafree.models.rl import Actor, Critic
 
 def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu'):
     batch_size = anchor.size(0)
     with torch.no_grad():
-        pseudo_label, anchor_t_out = teacher(anchor.to(device).detach(), return_features=True)
-        pseudo_label = pseudo_label.argmax(1)
+        t_logit, anchor_t_out = teacher(anchor.to(device).detach(), return_features=True)
     # loss = 0.
     pos_loss = 0.
     neg_loss = 0.
@@ -49,6 +41,14 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         sorted_d, indice_d = torch.sort(d, dim=1)
         d_pos = sorted_d[:, :int(0.1 * N_batch)]
         d_neg = sorted_d[:, int(0.1 * N_batch):]
+        d_mask = torch.zeros_like(indice_d)
+        d_mask = d_mask.scatter(1, indice_d[:, :int(0.1*N_batch)], 1)
+        p_t_anchor = torch.softmax(t_logit, 1)
+        p_t_batch = torch.softmax(logit_t, 1)
+        kld_matrix = -torch.mm(p_t_anchor, p_t_batch.T.log()) + torch.diag(torch.mm(p_t_anchor, p_t_anchor.T.log())).unsqueeze(1)
+        l_kld = (kld_matrix * d_mask).mean()
+
+        # d_mask[:, indice_d[:, :int(0.1 * N_batch)]]
         # Get positive DA index
         p_pos = torch.softmax(d_pos / tau, dim=1)
         p_da_pos = torch.quantile(p_pos, q=hard_factor, dim=1).unsqueeze(1)
@@ -59,7 +59,7 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg), dim=1).mean().abs()
 
         # print(pos_loss, neg_loss)
-        return pos_loss+neg_loss, pos_loss, neg_loss
+        return pos_loss+neg_loss, pos_loss, neg_loss, l_kld
 
 def reset_model(model):
     for m in model.modules():
@@ -86,6 +86,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         # if os.path.exists(self.save_dir):
         #     shutil.rmtree(self.save_dir)
         self.data_pool = ImagePool(root=self.save_dir, save=False)
+        # self.data_pool = FeaturePool(root=self.save_dir)
         self.data_iter = None
         self.transform = transform
         self.synthesis_batch_size = synthesis_batch_size
@@ -116,15 +117,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.tau = tau
         self.hard = hard
         # Reinforcement settings
-        # self.rl_iters = rl_iters
-        # self.actor = Actor(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=1).to(device)
-        # self.critic = Critic(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=synthesis_batch_size).to(device)
-        # self.env = Environment(models=(self.teacher, self.student, G_list[0]), evaluator=evaluator, batch_size=synthesis_batch_size, latent_dim=nz, device=device)
-        # self.aug = transforms.Compose([
-        #     augmentation.RandomCrop(size=[img_size, img_size], padding=4),
-        #     augmentation.RandomHorizontalFlip(),
-        #     normalizer,
-        # ])
         for i, G in enumerate(self.G_list):
             reset_model(G)
             optimizer = torch.optim.Adam(G.parameters(), self.lr_g, betas=[0.9, 0.99])
@@ -195,7 +187,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
             # Anchor sampling:
             if not warmup and self.memory:
                 anchor = self.data_iter.next()
-                loss_hard, loss_pos, loss_neg = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
+                loss_hard, loss_pos, loss_neg, l_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard
             else:
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
@@ -215,31 +207,19 @@ class MHDFKDSynthesizer(BaseSynthesis):
 
         if self.memory and warmup:
             self.update_loader(best_inputs=best_inputs)
+            # self.update_loader(best_inputs=t_feat)
            
         # exit(-1)
         # self.student.train()
         return {'synthetic': best_inputs}
 
     @torch.no_grad()
-    def sample(self, l=0, history=False, warmup=True):
-        if not history:
+    def sample(self, l=0, warmup=False):
+        if (not self.memory) or (self.memory and not warmup):
             self.G_list[l].eval() 
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
-            # print(inputs)
-            # exit(-1)
-            if not warmup:
-                self.k = max(self.k * (1 - self.gk), self.mk)
-                # # Choose top-k ratio subset and fill out for length self.synthesis_bs
-                # all_repeats = math.ceil(1 / self.k)
-                t_out = self.teacher(self.normalizer(inputs))
-                s_out = self.student(self.normalizer(inputs))
-                loss = datafree.criterions.kldiv(s_out, t_out, T=self.T, reduction='none').sum(1)
-                _, indice = torch.sort(loss)
-                selected_index = indice[-int(self.k * self.synthesis_batch_size):]
-                inputs = inputs[selected_index]
-                # print(inputs.shape)
 
         else:
             inputs = self.data_iter.next()
@@ -248,6 +228,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
     def update_loader(self, best_inputs):
         self.data_pool.add(best_inputs)
         dst = self.data_pool.get_dataset(transform=self.transform)
+        # dst = self.data_pool.get_dataset()
         if self.distributed:
             train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
         else:
