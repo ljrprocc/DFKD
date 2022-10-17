@@ -80,7 +80,7 @@ def reset_model(model):
 
 
 class MHDFKDSynthesizer(BaseSynthesis):
-    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, bank_size=10, mode='memory'):
+    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, bank_size=10, mode='memory', kld=0.1):
         super(MHDFKDSynthesizer, self).__init__(teacher, student)
         self.save_dir = save_dir
         self.img_size = img_size 
@@ -122,20 +122,11 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.hard = hard
         self.mu = mu
         self.mode = mode
+        self.kld = kld
         if not os.path.exists(os.path.join(self.save_dir, 'buffer.pt')):
             self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, teacher.linear.in_features)
         else:
             self.anchor_bank = torch.load(os.path.join(self.save_dir, 'buffer.pt'))
-        # Reinforcement settings
-        # self.rl_iters = rl_iters
-        # self.actor = Actor(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=1).to(device)
-        # self.critic = Critic(state_size=self.teacher.linear.in_features+self.student.linear.in_features, action_size=synthesis_batch_size).to(device)
-        # self.env = Environment(models=(self.teacher, self.student, G_list[0]), evaluator=evaluator, batch_size=synthesis_batch_size, latent_dim=nz, device=device)
-        # self.aug = transforms.Compose([
-        #     augmentation.RandomCrop(size=[img_size, img_size], padding=4),
-        #     augmentation.RandomHorizontalFlip(),
-        #     normalizer,
-        # ])
         for i, G in enumerate(self.G_list):
             reset_model(G)
             optimizer = torch.optim.Adam(G.parameters(), self.lr_g, betas=[0.9, 0.99])
@@ -158,10 +149,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
             g, v= gv
             v = v.to(self.device)
             g = g.to(self.device)
-        # z = torch.randn(size=(self.synthesis_batch_size, self.nz), device=self.device).requires_grad_()
-        # Analysis this framework.
-        # reset_model(G)
-        # optimizer = torch.optim.Adam([{'params': G.parameters()}, {'params': [z]}], self.lr_g, betas=[0.5, 0.999])
         for i in range(self.iterations[l]):
             # if i % 50 == 0:
             #     print(i)
@@ -172,8 +159,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
             # optimizer.zero_grad()
             self.optimizers[l].zero_grad()
             
-            # Rec and variance
-            # mu_theta, logvar_theta = G(z1, l=l)
             mu_theta = G(z, l=l)
             samples = self.normalizer(mu_theta)
             # print(samples)
@@ -225,7 +210,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     anchor = self.anchor_bank[random_index]
                 # loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
                 loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher.linear, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + loss_kld
+                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld
             else:
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
             

@@ -114,6 +114,7 @@ parser.add_argument('--hard', default=1.0, type=float, help="hyperparmeter for h
 parser.add_argument('--bank_size', default=10, type=int)
 parser.add_argument('--mode', default='memory', type=str)
 parser.add_argument('--mu', default=0.5, type=float)
+parser.add_argument('--kld', default=0.1, type=float)
 
 # pretrained generative model testing
 # parser.add_argument('--pretrained', action="store_true", help='Flag for whether use pretrained generative models')
@@ -511,168 +512,14 @@ def main_worker(gpu, ngpus_per_node, args):
             tau=args.tau,
             mu=args.mu,
             bank_size=args.bank_size,
-            mode=args.mode
-        )
-
-    elif args.method == 'pretrained':
-        nz = 100
-        kd_steps = args.kd_steps_interval.split(',')
-        kd_steps = [int(x) for x in kd_steps]
-        replay_buffer = None
-        sde = None
-        inverse_scaler = None
-        # g_steps = args.g_steps_interval.split(',')
-        # g_steps = [int(x) for x in g_steps]
-        if args.pretrained_mode == 'gan':
-            G = datafree.models.generator.pretrained_DCGAN_Generator(ngpu=1, nz=nz, ngf=64)
-            ckpt = torch.load(args.pretrained_G_weight, map_location='cpu')
-        elif args.pretrained_mode == 'glow':
-            hyper_para_path = '/'.join(args.pretrained_G_weight.split('/')[:-1])+'/hparams.json'
-            with open(hyper_para_path) as json_file:  
-                hparams = json.load(json_file)
-            
-
-            G = datafree.models.glow.glow_g.Glow((32, 32, 3), hparams['hidden_channels'], hparams['K'], hparams['L'], hparams['actnorm_scale'], hparams['flow_permutation'], hparams['flow_coupling'], hparams['LU_decomposed'], num_classes, hparams['learn_top'], hparams['y_condition'])
-            ckpt = torch.load(args.pretrained_G_weight, map_location='cpu')
-        elif args.pretrained_mode == 'diffusion':
-            # new_args = create_argparser().parse_args()
-            # online sample
-            # TIPS: although using DDIM to accelerate sampling speed, 
-            # it's still extremely slow
-            # args_dict = model_and_diffusion_defaults()
-            # args_dict['image_size'] = 32
-            # args_dict['num_channels'] = 128
-            # args_dict['num_res_blocks'] = 3
-            # args_dict['learn_sigma'] = True
-            # args_dict['diffusion_steps'] = 4000
-            # args_dict['noise_schedule'] = 'cosine'
-            # args_dict['use_kl'] = True
-            # args_dict['dropout'] = 0.3
-            # args_dict['timestep_respacing'] = 'ddim250'         
-            # model, diffusion = create_model_and_diffusion( **args_dict)
-            # G = model
-            # ckpt = torch.load(args.pretrained_G_weight, map_location='cpu')
-            # offline sample
-            G = None
-            replay_buffer = np.load(args.pretrained_G_weight)
-            from PIL import Image
-            import torchvision.transforms as T
-            
-            replay_buffer = [Image.fromarray(x) for x in replay_buffer['arr_0']]
-            # replay_buffer = torch.stack(img, 0)
-            
-        elif args.pretrained_mode == 'ebm':
-            # Langevin Dynamics can be too slow..
-            # We only support 
-            from PIL import Image
-            G = None
-            ckpt = torch.load(args.pretrained_G_weight)
-            replay_buffer = ckpt['replay_buffer']
-            replay_buffer = (replay_buffer + 1) / 2
-            replay_buffer = replay_buffer.clamp_(0, 1) * 255
-            replay_buffer = [Image.fromarray(x) for x in replay_buffer.permute(0,2,3,1).numpy().astype(np.uint8)]
-
-        elif args.pretrained_mode == 'sde':
-            # Following Online Sampling Algorithms,
-            # Maybe critically Slow.
-            # from datafree.models.score_sde import models, sampling, sde_lib, configs, datasets
-            # from datafree.models.score_sde.models import utils as mutils
-            # from datafree.models.score_sde.models import ncsnv2
-            # from datafree.models.score_sde.models import ncsnpp
-            # from datafree.models.score_sde.models import ddpm as ddpm_model
-            # from datafree.models.score_sde.models import layerspp
-            # from datafree.models.score_sde.models import layers
-            # from datafree.models.score_sde.models import normalization
-            # from datafree.models.score_sde.sde_lib import VESDE, VPSDE, subVPSDE
-            # from datafree.models.score_sde.models.ema import ExponentialMovingAverage
-            # from datafree.models.score_sde
-            # from sampling import (ReverseDiffusionPredictor, 
-            #           LangevinCorrector, 
-            #           EulerMaruyamaPredictor, 
-            #           AncestralSamplingPredictor, 
-            #           NoneCorrector, 
-            #           NonePredictor,
-            #           AnnealedLangevinDynamics)
-            # sde = 'VPSDE'
-            # if sde.lower() == 'vesde':
-            #     from datafree.models.score_sde.configs.ve import cifar10_ncsnpp_continuous as configs
-                
-            #     # ckpt_filename = "/data1/lijingru/score_sde_pytorch/exp/ve/cifar10_ncsnpp_continuous/checkpoint_24.pth"
-            #     config = configs.get_config()  
-            #     sde = VESDE(sigma_min=config.model.sigma_min, sigma_max=config.model.sigma_max, N=config.model.num_scales)
-            #     sampling_eps = 1e-5
-            # elif sde.lower() == 'vpsde':
-            #     from datafree.models.score_sde.configs.vp import cifar10_ddpmpp_continuous as configs  
-            #     # ckpt_filename = "/data1/lijingru/score_sde_pytorch/exp/vp/cifar10_ddpmpp_continuous/checkpoint_8.pth"
-            #     config = configs.get_config()
-            #     sde = VPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
-            #     sampling_eps = 1e-3
-            # elif sde.lower() == 'subvpsde':
-            #     from datafree.models.score_sde.configs.subvp import cifar10_ddpmpp_continuous as configs
-            #     # ckpt_filename = "/data1/lijingru/score_sde_pytorch/exp/subvp/cifar10_ddpmpp_continuous/checkpoint_26.pth"
-            #     config = configs.get_config()
-            #     sde = subVPSDE(beta_min=config.model.beta_min, beta_max=config.model.beta_max, N=config.model.num_scales)
-            #     sampling_eps = 1e-3
-            # config.training.batch_size = args.batch_size
-            # config.eval.batch_size = args.batch_size
-            # # sigmas = mutils.get_sigmas(config)
-            # # print('1')
-            # # scaler = datafree.models.score_sde.datasets.get_data_scaler(config)
-            # # print('2')
-            # inverse_scaler = datafree.models.score_sde.datasets.get_data_inverse_scaler(config)
-            # # print('3')
-            # score_model = mutils.create_model(config)
-            # G = score_model.to(args.gpu)
-            # optimizer = get_optimizer(config, score_model.parameters())
-            # ema = ExponentialMovingAverage(score_model.parameters(),
-            #                             decay=config.model.ema_rate)
-            # state = dict(step=0, optimizer=optimizer,
-            #             model=G, ema=ema)
-            # Offline Sampling, Loading predownloaded buffer from local.
-            from PIL import Image
-            G = None
-            all_npzs = os.listdir(args.pretrained_G_weight)
-            replay_buffer = []
-            for npz in all_npzs:
-                if npz.endswith('.npz'):
-                    npz_dir = os.path.join(args.pretrained_G_weight, npz)
-                    npz_load = np.load(npz_dir)
-                    images = [Image.fromarray(x) for x in npz_load['samples']]
-                    replay_buffer.extend(images)
-
-
-        print('Loading pretrained generator...')
-        if args.pretrained_mode == 'ebm' or args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'sde':
-            # G.load_state_dict(ckpt)
-            pass
-        # elif args.pretrained_mode == 'sde':
-        #     state = restore_checkpoint(args.pretrained_G_weight, config.device, state)
-        #     ema.copy_to(G.parameters())
-        else:
-            G.load_state_dict(ckpt)
-        synthesizer = datafree.synthesis.PretrainedGenerativeSynthesizer(
-            teacher=teacher,
-            student=student,
-            generator=G,
-            nz=nz, 
-            img_size=32,
-            synthesis_batch_size=args.batch_size,
-            sample_batch_size=args.batch_size,
-            normalizer=args.normalizer,
-            device=args.gpu,
-            mode=args.pretrained_mode,
-            use_ddim=True,
-            replay_buffer=replay_buffer,
-            transform = ori_dataset.transform,
-            inverse_scaler=inverse_scaler,
-            sde=sde
+            mode=args.mode,
+            kld=args.kld
         )
     else: raise NotImplementedError
         
     ############################################
     # Setup optimizer
     ############################################
-    # layers = [student, student.layer2, student.layer3, student.layer4, student.linear]
     optimizers = []
     
     optimizer = torch.optim.SGD(student.parameters(), args.lr, weight_decay=args.weight_decay, momentum=0.9)
@@ -756,9 +603,6 @@ def main_worker(gpu, ngpus_per_node, args):
 
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
-        # exit(-1)
-        # if args.memory:
-        #     synthesizer.update_loader(vis_result['synthetic'])
         
         if vis_result is not None:
             for vis_name, vis_image in vis_result.items():
@@ -827,7 +671,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         logger = args.logger[args.local_rank]
     else:
         logger = args.logger
-    history = (args.method == 'deepinv') or (args.method == 'cmi') or (args.method == 'pretrained' and (args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'ebm')) or (args.method.endswith('cudfkd') and args.memory)
+    history = (args.method == 'deepinv') or (args.method == 'cmi') or (args.method.endswith('cudfkd') and args.memory)
     for i in range(kd_step):
         # print(i)
         loss_s = 0.0
