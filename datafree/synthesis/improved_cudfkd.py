@@ -3,6 +3,7 @@ from distutils.command.config import LANG_EXT
 from torch import nn
 import torch
 import torch.nn.functional as F
+import math
 
 from .base import BaseSynthesis
 from datafree.hooks import DeepInversionHook
