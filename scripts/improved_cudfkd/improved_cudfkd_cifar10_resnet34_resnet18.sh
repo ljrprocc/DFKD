@@ -13,22 +13,24 @@ python datafree_kd.py \
 --g_steps 1 \
 --lr_g 0.001 \
 --begin_fraction 0.25 \
+--end_fraction 0.75 \
 --adv 1. \
 --depth 2 \
 --T 20 \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 0 \
+--gpu 5 \
 --seed 0 \
 --bn 1 \
---save_dir run/cr2 \
---log_tag cr2_later_latest \
+--save_dir run/cr4_sim_contra \
+--log_tag cr4_sim_contra \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 2.0 \
 --log_fidelity \
---memory \
+--mode bank \
+--hard 0.1 \
 --loss kl
