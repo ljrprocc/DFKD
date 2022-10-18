@@ -412,12 +412,15 @@ class FeaturePool(object):
             buffer = []
         return buffer
 
-    def add(self, feat):
-        self.datas.append(feat.detach().cpu())
+    def add(self, feat, replace=True):
+        if replace:
+            self.datas = list(feat.detach().cpu())
+        else:
+            self.datas.append(list(feat.detach().cpu()))
         self._idx+=1
 
     def save_buffer(self):
-        save_x = torch.stack(self.data, 0)
+        save_x = torch.stack(self.datas, 0)
         torch.save(save_x, os.path.join(self.root, 'buffer.pt'))
 
     def get_dataset(self):

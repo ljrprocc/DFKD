@@ -41,7 +41,8 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         #     l_neg = torch.sum(p_neg * torch.log(p_neg / p_da_neg))
         #     pos_loss += l_pos
         #     neg_loss += l_neg
-        d = torch.mm(anchor_t_out, t_out.T)
+        normalized_anchor_t_out, normalized_t_out = F.normalize(anchor_t_out, dim=1), F.normalize(t_out, dim=1)
+        d = torch.mm(normalized_anchor_t_out, normalized_t_out.T)
         N_an, N_batch = d.size()
         # positive_negative_border = torch.quantile(d, q=0.1, dim=1)
         # d_pos = d[:, d <= positive_negative_border]
@@ -55,18 +56,18 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         p_t_anchor = torch.softmax(t_logit, 1)
         p_t_batch = torch.softmax(logit_t, 1)
         kld_matrix = -torch.mm(p_t_anchor, p_t_batch.T.log()) + torch.diag(torch.mm(p_t_anchor, p_t_anchor.T.log())).unsqueeze(1)
-        l_kld = ((kld_matrix * d_mask).sum(1) / d_mask.sum(1)).sum()
+        l_kld = ((kld_matrix * d_mask).sum(1) / d_mask.sum(1)).mean()
         # Get positive DA index
         p_pos = torch.softmax(d_pos / tau, dim=1)
         p_da_pos = torch.quantile(p_pos, q=1-hard_factor, dim=1).unsqueeze(1)
-        pos_loss = torch.sum(p_pos * torch.log(p_pos / p_da_pos).abs(), dim=1).sum()
+        pos_loss = torch.sum(p_pos * torch.log(p_pos / p_da_pos).abs(), dim=1).mean()
         # Get Negative DA index
         p_neg = torch.softmax(d_neg / tau, dim=1)
         p_da_neg = torch.quantile(p_neg, q=hard_factor, dim=1).unsqueeze(1)
         neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg).abs(), dim=1).sum()
 
         # print(pos_loss, neg_loss)
-        return pos_loss+neg_loss, pos_loss, neg_loss, l_kld
+        return pos_loss, pos_loss, neg_loss, l_kld
 
 def reset_model(model):
     for m in model.modules():

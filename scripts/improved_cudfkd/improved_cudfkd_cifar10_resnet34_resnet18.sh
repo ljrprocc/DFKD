@@ -20,11 +20,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 5 \
+--gpu 4 \
 --seed 0 \
 --bn 1 \
---save_dir run/cr4_sim_contra \
---log_tag cr4_sim_contra \
+--save_dir run/cr4_sim_normalize_pos \
+--log_tag cr4_sim_normalize_pos \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -32,5 +32,6 @@ python datafree_kd.py \
 --lambda_0 2.0 \
 --log_fidelity \
 --mode bank \
---hard 0.1 \
+--hard 0.5 \
+--kld 0.5 \
 --loss kl
