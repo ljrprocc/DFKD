@@ -23,8 +23,8 @@ python datafree_kd.py \
 --gpu 4 \
 --seed 0 \
 --bn 1 \
---save_dir run/cr4_sim_normalize_pos \
---log_tag cr4_sim_normalize_pos \
+--save_dir run/cr5_sim_normalize_pos \
+--log_tag cr5_sim_normalize_pos \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -32,6 +32,6 @@ python datafree_kd.py \
 --lambda_0 2.0 \
 --log_fidelity \
 --mode bank \
---hard 0.5 \
---kld 0.5 \
+--hard 1.0 \
+--kld 1.0 \
 --loss kl

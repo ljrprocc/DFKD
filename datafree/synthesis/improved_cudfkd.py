@@ -228,9 +228,9 @@ class MHDFKDSynthesizer(BaseSynthesis):
             # optimizer.step()
             # print(best_inputs.shape)
 
-        if self.memory or warmup:
+        # if self.memory or warmup:
             # self.update_loader(best_inputs=best_inputs)
-            self.update_loader(best_inputs=t_feat)
+        self.update_loader(best_inputs=t_feat)
            
         # exit(-1)
         # self.student.train()
