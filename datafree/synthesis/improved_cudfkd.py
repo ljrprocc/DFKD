@@ -3,18 +3,18 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
-import math
+from info_nce import InfoNCE
 import os
 
 from .base import BaseSynthesis
 import datafree
 from datafree.hooks import DeepInversionHook
-from datafree.utils import ImagePool, DataIter, clip_images, FeaturePool
+from datafree.utils import ImagePool, DataIter, clip_images, FeaturePool, Queue
 from datafree.criterions import jsdiv, kldiv
 from kornia import augmentation
 import numpy as np
 
-def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu'):
+def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', neg_features=None):
     batch_size = anchor.size(0)
     with torch.no_grad():
         # t_logit, anchor_t_out = teacher(anchor.to(device).detach(), return_features=True)
@@ -25,22 +25,6 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
     pos_loss = 0.
     neg_loss = 0.
     if ds == 'cifar10':
-        # for i in range(batch_size):
-        #     this_anchor = anchor_t_out[i].unsqueeze(0)
-        #     pos_features = t_out[pseudo_label[i] == logit_t.argmax(1)]
-        #     neg_features = t_out[pseudo_label[i] != logit_t.argmax(1)]
-        #     d_pos = torch.mm(this_anchor, pos_features.T)
-        #     d_neg = torch.mm(this_anchor, neg_features.T)
-        #     # Get positive DA index
-        #     p_pos = torch.softmax(d_pos / tau, dim=1)
-        #     p_da_pos = torch.quantile(p_pos, q=hard_factor, dim=1).item()
-        #     l_pos = torch.sum(p_pos * torch.log(p_pos / p_da_pos))
-        #     # Get Negative DA index
-        #     p_neg = torch.softmax(d_neg / tau, dim=1)
-        #     p_da_neg = torch.quantile(p_neg, q=1-hard_factor, dim=1).item()
-        #     l_neg = torch.sum(p_neg * torch.log(p_neg / p_da_neg))
-        #     pos_loss += l_pos
-        #     neg_loss += l_neg
         normalized_anchor_t_out, normalized_t_out = F.normalize(anchor_t_out, dim=1), F.normalize(t_out, dim=1)
         d = torch.mm(normalized_anchor_t_out, normalized_t_out.T)
         N_an, N_batch = d.size()
@@ -51,6 +35,7 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         sorted_d, indice_d = torch.sort(d, dim=1)
         d_pos = sorted_d[:, -int(0.1 * N_batch):]
         d_neg = sorted_d[:, :-int(0.1 * N_batch)]
+        n_neg = d_neg.size(1)
         d_mask = torch.zeros_like(indice_d)
         d_mask = d_mask.scatter(1, indice_d[:, -int(0.1*N_batch):], 1)
         p_t_anchor = torch.softmax(t_logit, 1)
@@ -62,12 +47,21 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         p_da_pos = torch.quantile(p_pos, q=1-hard_factor, dim=1).unsqueeze(1)
         pos_loss = torch.sum(p_pos * torch.log(p_pos / p_da_pos).abs(), dim=1).mean()
         # Get Negative DA index
-        p_neg = torch.softmax(d_neg / tau, dim=1)
-        p_da_neg = torch.quantile(p_neg, q=hard_factor, dim=1).unsqueeze(1)
-        neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg).abs(), dim=1).sum()
-
+        
+        # p_neg = torch.softmax(d_neg / tau, dim=1)
+        # Get hard negative loss
+        if neg_features is not None:
+            info_nce_sample = InfoNCE(temperature=tau)
+            
+            neg_loss = info_nce_sample(query=anchor_t_out, positive_key=t_out.gather(0, indice_d[-int(0.1 * N_batch):]), negative_keys=neg_features)
+        
+        # p_da_neg = torch.quantile(p_neg, q=hard_factor, dim=1).unsqueeze(1)
+        # neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg).abs(), dim=1).sum()
+        print(neg_loss)
         # print(pos_loss, neg_loss)
-        return pos_loss, pos_loss, neg_loss, l_kld
+        # Use 1.05 - hard_factor instead of 1.0 - hard_factor, because we choose small subset of 
+        # hardest negative sample.
+        return pos_loss, indice_d[:-int(0.1 * N_batch)][:int((1.05 - hard_factor) * n_neg)], neg_loss, l_kld
 
 def reset_model(model):
     for m in model.modules():
@@ -112,6 +106,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.l1 = l1
         self.bn = bn
         self.distributed = distributed
+        self.neg_bank = Queue(capacity=100)
         
         self.oh = oh
         self.act = act
@@ -124,8 +119,16 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.mu = mu
         self.mode = mode
         self.kld = kld
+        self.n_neg = 4096
+        self.neg = 0.5
+        if hasattr(teacher, 'linear'):
+            self.head = teacher.linear
+        elif hasattr(teacher, 'fc'):
+            self.head = teacher.fc
+        elif hasattr(teacher, 'classifier'):
+            self.head = teacher.classifier
         if not os.path.exists(os.path.join(self.save_dir, 'buffer.pt')):
-            self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, teacher.linear.in_features)
+            self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, self.head.in_features)
         else:
             self.anchor_bank = torch.load(os.path.join(self.save_dir, 'buffer.pt'))
         for i, G in enumerate(self.G_list):
@@ -204,14 +207,24 @@ class MHDFKDSynthesizer(BaseSynthesis):
                             dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
                             num_workers=4, pin_memory=True, sampler=train_sampler)
                         self.data_iter = DataIter(loader)
-                    anchor = self.data_iter.next()
+                    
+                    anchor = t_feat if self.data_iter is None else self.data_iter.next()
                 else:
                     import random
-                    random_index = random.randint(0, self.anchor_bank.size(0) - 1)
-                    anchor = self.anchor_bank[random_index]
+                    # random_index = random.randint(0, self.anchor_bank.size(0) - 1)
+                    anchor = self.anchor_bank.reshape(-1, self.head.in_features)
                 # loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher.linear, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld
+                if self.neg_bank.all_batch_num() >= self.n_neg:
+                    neg_features = self.neg_bank.sample(self.n_neg)
+                else:
+                    neg_features = None
+                loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device, neg_features=neg_features)
+                # Update negative queue
+                # print(t_feat.gather(1, neg_indice).shape)
+                # print(neg_indice.max(), t_feat.shape)
+                self.neg_bank.put(t_feat.gather(0, neg_indice))
+                
+                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
             else:
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
             

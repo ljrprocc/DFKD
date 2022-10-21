@@ -12,7 +12,7 @@ python datafree_kd.py \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \
---begin_fraction 0.25 \
+--begin_fraction 0.0 \
 --end_fraction 0.75 \
 --adv 1. \
 --depth 2 \
@@ -20,18 +20,19 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 4 \
+--gpu 5 \
 --seed 0 \
 --bn 1 \
---save_dir run/cr5_sim_normalize_pos \
---log_tag cr5_sim_normalize_pos \
+--save_dir run/nce_cr1 \
+--log_tag nce_cr1 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 2.0 \
 --log_fidelity \
---mode bank \
+--mode memory \
 --hard 1.0 \
---kld 1.0 \
+--kld 0.5 \
+--tau 0.07 \
 --loss kl

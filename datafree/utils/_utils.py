@@ -508,6 +508,35 @@ class FeatureMemory(Dataset):
     def __getitem__(self, index):
         return self.buffer[index]
 
+class Queue:
+    def __init__(self, capacity=100):
+        self.capacity = capacity
+        self.reset()
+
+    def put(self, data):
+        assert len(data.shape) == 3
+        if len(self.data) == self.capacity:
+            self.data.pop(0)
+        print(data.shape)
+        self.data.append(data.detach().cpu())
+
+    def reset(self):
+        self.data = []
+    
+    def get(self):
+        return self.data[-1]
+
+    def all_batch_num(self):
+        if len(self.data) == 0:
+            return 0
+        all_data = torch.cat(self.data, 0)
+        return all_data.size(0)
+    
+    def sample(self, n_neg):
+        all_data = torch.cat(self.data, 0)
+        neg_idx = np.random.choice(all_data.size(0), n_neg, replace=False)
+        return all_data[neg_idx]
+
 
 @contextmanager
 def dummy_ctx(*args, **kwds):
