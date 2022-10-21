@@ -50,14 +50,14 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         
         # p_neg = torch.softmax(d_neg / tau, dim=1)
         # Get hard negative loss
-        if neg_features is not None:
-            info_nce_sample = InfoNCE(temperature=tau)
+        # if neg_features is not None:
+        #     info_nce_sample = InfoNCE(temperature=tau)
             
-            neg_loss = info_nce_sample(query=anchor_t_out, positive_key=t_out.gather(0, indice_d[-int(0.1 * N_batch):]), negative_keys=neg_features)
+        #     neg_loss = info_nce_sample(query=anchor_t_out, positive_key=t_out.gather(0, indice_d[-int(0.1 * N_batch):]), negative_keys=neg_features)
         
         # p_da_neg = torch.quantile(p_neg, q=hard_factor, dim=1).unsqueeze(1)
         # neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg).abs(), dim=1).sum()
-        print(neg_loss)
+        # print(neg_loss)
         # print(pos_loss, neg_loss)
         # Use 1.05 - hard_factor instead of 1.0 - hard_factor, because we choose small subset of 
         # hardest negative sample.
@@ -222,7 +222,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                 # Update negative queue
                 # print(t_feat.gather(1, neg_indice).shape)
                 # print(neg_indice.max(), t_feat.shape)
-                self.neg_bank.put(t_feat.gather(0, neg_indice))
+                # self.neg_bank.put(t_feat.gather(0, neg_indice))
                 
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
             else:
