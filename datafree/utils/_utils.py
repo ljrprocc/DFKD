@@ -517,7 +517,7 @@ class Queue:
         assert len(data.shape) == 3
         if len(self.data) == self.capacity:
             self.data.pop(0)
-        print(data.shape)
+        # print(data.shape)
         self.data.append(data.detach().cpu())
 
     def reset(self):
@@ -529,13 +529,13 @@ class Queue:
     def all_batch_num(self):
         if len(self.data) == 0:
             return 0
-        all_data = torch.cat(self.data, 0)
-        return all_data.size(0)
+        all_data = torch.cat(self.data, 1)
+        return all_data.size(1)
     
     def sample(self, n_neg):
-        all_data = torch.cat(self.data, 0)
-        neg_idx = np.random.choice(all_data.size(0), n_neg, replace=False)
-        return all_data[neg_idx]
+        all_data = torch.cat(self.data, 1)
+        neg_idx = np.random.choice(all_data.size(1), n_neg, replace=False)
+        return all_data[:, neg_idx, :]
 
 
 @contextmanager

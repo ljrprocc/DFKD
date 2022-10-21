@@ -1,7 +1,7 @@
 python datafree_kd.py \
 --method improved_cudfkd \
 --dataset cifar10 \
---batch_size 768 \
+--batch_size 512 \
 --teacher resnet34 \
 --student resnet18 \
 --lr 0.1 \
@@ -12,7 +12,7 @@ python datafree_kd.py \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \
---begin_fraction 0.0 \
+--begin_fraction 0.25 \
 --end_fraction 0.75 \
 --adv 1. \
 --depth 2 \
@@ -20,7 +20,7 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 5 \
+--gpu 4 \
 --seed 0 \
 --bn 1 \
 --save_dir run/nce_cr1 \

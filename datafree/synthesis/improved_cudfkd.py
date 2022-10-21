@@ -3,7 +3,7 @@ from torch import nn
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
-from info_nce import InfoNCE
+# from info_nce import InfoNCE
 import os
 
 from .base import BaseSynthesis
@@ -13,6 +13,106 @@ from datafree.utils import ImagePool, DataIter, clip_images, FeaturePool, Queue
 from datafree.criterions import jsdiv, kldiv
 from kornia import augmentation
 import numpy as np
+
+def info_nce(query, positive_keys, negative_keys=None, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+    '''
+    From https://github.com/RElbers/info-nce-pytorch/blob/main/info_nce/__init__.py
+    Args:
+        temperature: Logits are divided by temperature before calculating the cross entropy.
+        reduction: Reduction method applied to the output.
+            Value must be one of ['none', 'sum', 'mean'].
+            See torch.nn.functional.cross_entropy for more details about each option.
+        negative_mode: Determines how the (optional) negative_keys are handled.
+            Value must be one of ['paired', 'unpaired'].
+            If 'paired', then each query sample is paired with a number of negative keys.
+            Comparable to a triplet loss, but with multiple negatives per sample.
+            If 'unpaired', then the set of negative keys are all unrelated to any positive key.
+    Input shape:
+        query: (N, D) Tensor with query samples (e.g. embeddings of the input).
+        positive_keys: (N, D) Tensor with positive samples (e.g. embeddings of augmented input).
+        negative_keys (optional): Tensor with negative samples (e.g. embeddings of other inputs)
+            If negative_mode = 'paired', then negative_keys is a (N, M, D) Tensor.
+            If negative_mode = 'unpaired', then negative_keys is a (M, D) Tensor.
+            If None, then the negative keys for a sample are the positive keys for the other samples.
+    Returns:
+         Value of the InfoNCE Loss.
+    '''
+    # Check input dimensionality.
+    if query.dim() != 2:
+        raise ValueError('<query> must have 2 dimensions.')
+    if positive_keys.dim() != 3:
+        raise ValueError('<positive_key> must have 3 dimensions.')
+    if negative_keys is not None:
+        if negative_mode == 'unpaired' and negative_keys.dim() != 2:
+            raise ValueError("<negative_keys> must have 2 dimensions if <negative_mode> == 'unpaired'.")
+        if negative_mode == 'paired' and negative_keys.dim() != 3:
+            raise ValueError("<negative_keys> must have 3 dimensions if <negative_mode> == 'paired'.")
+
+    # Check matching number of samples.
+    # if len(query) != len(positive_keys):
+    #     raise ValueError('<query> and <positive_key> must must have the same number of samples.')
+    if negative_keys is not None:
+        # print(query.shape, positive_keys.shape, negative_keys.shape)
+        if negative_mode == 'paired' and len(query) != len(negative_keys):
+            raise ValueError("If negative_mode == 'paired', then <negative_keys> must have the same number of samples as <query>.")
+
+    # Embedding vectors should have same number of components.
+    if query.shape[-1] != positive_keys.shape[-1]:
+        raise ValueError('Vectors of <query> and <positive_key> should have the same number of components.')
+    if negative_keys is not None:
+        if query.shape[-1] != negative_keys.shape[-1]:
+            raise ValueError('Vectors of <query> and <negative_keys> should have the same number of components.')
+
+    # Normalize to unit vectors
+    
+    query, positive_keys, negative_keys = normalize(query, positive_keys, negative_keys)
+    query = query.unsqueeze(1)
+    negative_keys = negative_keys.to(query.device)
+    if negative_keys is not None:
+        # Explicit negative keys
+
+        # Cosine between positive pairs
+        positive_logit = query @ transpose(positive_keys)
+        positive_logit = positive_logit.squeeze(1)
+
+        if negative_mode == 'unpaired':
+            # Cosine between all query-negative combinations
+            negative_logits = query @ transpose(negative_keys)
+
+        elif negative_mode == 'paired':
+            # query = query.unsqueeze(1)
+            negative_logits = query @ transpose(negative_keys)
+            negative_logits = negative_logits.squeeze(1)
+
+        # First index in last dimension are the positive samples
+        logits = torch.cat([positive_logit, negative_logits], dim=1)
+        N, m, D = positive_keys.size()
+        _, M, _ = negative_keys.size()
+        mask = torch.zeros(N, m+M, dtype=torch.long, device=query.device)
+        mask[:, :m] = 1
+        loss = -(logits.log_softmax(1) * mask).sum(1).mean()
+        labels = torch.zeros(len(logits), dtype=torch.long, device=query.device)
+    else:
+        # Negative keys are implicitly off-diagonal positive keys.
+
+        # Cosine between all combinations
+        logits = query @ transpose(positive_keys)
+
+        # Positive keys are the entries on the diagonal
+        labels = torch.arange(len(query), device=query.device)
+        loss = F.cross_entropy(logits / temperature, labels, reduction=reduction)
+
+
+    return loss
+
+
+def transpose(x):
+    return x.transpose(-2, -1)
+
+
+def normalize(*xs):
+    return [None if x is None else F.normalize(x, dim=-1) for x in xs]
+
 
 def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', neg_features=None):
     batch_size = anchor.size(0)
@@ -50,10 +150,10 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         
         # p_neg = torch.softmax(d_neg / tau, dim=1)
         # Get hard negative loss
-        # if neg_features is not None:
-        #     info_nce_sample = InfoNCE(temperature=tau)
+        if neg_features is not None:
+            # info_nce_sample = InfoNCE(temperature=tau)
             
-        #     neg_loss = info_nce_sample(query=anchor_t_out, positive_key=t_out.gather(0, indice_d[-int(0.1 * N_batch):]), negative_keys=neg_features)
+            neg_loss = info_nce(query=anchor_t_out, positive_keys=t_out[indice_d[:, -int(0.1 * N_batch):]], negative_keys=neg_features, temperature=tau, negative_mode='paired')
         
         # p_da_neg = torch.quantile(p_neg, q=hard_factor, dim=1).unsqueeze(1)
         # neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg).abs(), dim=1).sum()
@@ -61,7 +161,7 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         # print(pos_loss, neg_loss)
         # Use 1.05 - hard_factor instead of 1.0 - hard_factor, because we choose small subset of 
         # hardest negative sample.
-        return pos_loss, indice_d[:-int(0.1 * N_batch)][:int((1.05 - hard_factor) * n_neg)], neg_loss, l_kld
+        return pos_loss, indice_d[:, :-int(0.1 * N_batch)][:, :int((1.05 - hard_factor) * n_neg)], neg_loss, l_kld
 
 def reset_model(model):
     for m in model.modules():
@@ -222,7 +322,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                 # Update negative queue
                 # print(t_feat.gather(1, neg_indice).shape)
                 # print(neg_indice.max(), t_feat.shape)
-                # self.neg_bank.put(t_feat.gather(0, neg_indice))
+                self.neg_bank.put(t_feat[neg_indice])
                 
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
             else:
