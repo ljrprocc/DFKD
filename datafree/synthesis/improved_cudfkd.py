@@ -150,10 +150,10 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         
         # p_neg = torch.softmax(d_neg / tau, dim=1)
         # Get hard negative loss
-        if neg_features is not None:
-            # info_nce_sample = InfoNCE(temperature=tau)
+        # if neg_features is not None:
+        #     # info_nce_sample = InfoNCE(temperature=tau)
             
-            neg_loss = info_nce(query=anchor_t_out, positive_keys=t_out[indice_d[:, -int(0.1 * N_batch):]], negative_keys=neg_features, temperature=tau, negative_mode='paired')
+        #     neg_loss = info_nce(query=anchor_t_out, positive_keys=t_out[indice_d[:, -int(0.1 * N_batch):]], negative_keys=neg_features, temperature=tau, negative_mode='paired')
         
         # p_da_neg = torch.quantile(p_neg, q=hard_factor, dim=1).unsqueeze(1)
         # neg_loss = torch.sum(p_neg * torch.log(p_neg / p_da_neg).abs(), dim=1).sum()
@@ -320,9 +320,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     neg_features = None
                 loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device, neg_features=neg_features)
                 # Update negative queue
-                # print(t_feat.gather(1, neg_indice).shape)
-                # print(neg_indice.max(), t_feat.shape)
-                self.neg_bank.put(t_feat[neg_indice])
+                # self.neg_bank.put(t_feat[neg_indice])
                 
                 loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
             else:
@@ -333,19 +331,14 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     best_cost = loss.item()
                     best_inputs = mu_theta
                     # print(best_inputs)
-                    
-           
+
             loss.backward()
             self.optimizers[l].step()
-            # self.x = best_inputs
-            # optimizer.step()
-            # print(best_inputs.shape)
 
         # if self.memory or warmup:
             # self.update_loader(best_inputs=best_inputs)
         self.update_loader(best_inputs=t_feat)
-           
-        # exit(-1)
+        
         # self.student.train()
         return {'synthetic': best_inputs}
 

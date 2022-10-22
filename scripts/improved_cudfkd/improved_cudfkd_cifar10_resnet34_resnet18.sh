@@ -20,11 +20,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 4 \
+--gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/nce_cr1 \
---log_tag nce_cr1 \
+--save_dir run/cr7_pos_normal \
+--log_tag cr7_pos_normal \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \

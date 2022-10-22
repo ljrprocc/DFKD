@@ -412,7 +412,7 @@ class FeaturePool(object):
             buffer = []
         return buffer
 
-    def add(self, feat, replace=True):
+    def add(self, feat, replace=False):
         if replace:
             self.datas = list(feat.detach().cpu())
         else:
