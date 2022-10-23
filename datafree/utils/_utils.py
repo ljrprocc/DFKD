@@ -413,14 +413,17 @@ class FeaturePool(object):
         return buffer
 
     def add(self, feat, replace=False):
+        # print(feat.shape)
+        # print(feat.shape)
         if replace:
             self.datas = list(feat.detach().cpu())
         else:
-            self.datas.append(list(feat.detach().cpu()))
+            self.datas.extend(list(feat.detach().cpu()))
         self._idx+=1
 
     def save_buffer(self):
-        save_x = torch.stack(self.datas, 0)
+        # print(self.datas[0].shape)
+        save_x = torch.cat(self.datas, 0)
         torch.save(save_x, os.path.join(self.root, 'buffer.pt'))
 
     def get_dataset(self):
@@ -513,15 +516,21 @@ class Queue:
         self.capacity = capacity
         self.reset()
 
-    def put(self, data):
-        assert len(data.shape) == 3
+    def put(self, data, indice):
+        # data.shape = (N_batch, D)
+        # indice.shape = (N_an, n_batch_neg)
+        # Real Data: data[indice], shape = (N_an, n_batch_neg, D)
+        assert len(data.shape) == 2
         if len(self.data) == self.capacity:
             self.data.pop(0)
+            self.indice.pop(0)
         # print(data.shape)
         self.data.append(data.detach().cpu())
+        self.indice.append(indice.cpu())
 
     def reset(self):
         self.data = []
+        self.indice = []
     
     def get(self):
         return self.data[-1]
@@ -529,13 +538,29 @@ class Queue:
     def all_batch_num(self):
         if len(self.data) == 0:
             return 0
-        all_data = torch.cat(self.data, 1)
-        return all_data.size(1)
+        return len(self.data) * self.indice[0].size(1)
     
-    def sample(self, n_neg):
-        all_data = torch.cat(self.data, 1)
-        neg_idx = np.random.choice(all_data.size(1), n_neg, replace=False)
-        return all_data[:, neg_idx, :]
+    def sample(self, n_neg, anchor):
+        # anchor.shape = (n_an, D)
+        # output.shape = (n_an, n_neg)
+        # indice.shape = (n_an, n_neg)
+        # N_batch, D = self.data[0].size()
+        # all_data = torch.cat(self.data, 0)
+        # neg_idx = np.random.choice(all_data.size(0), n_neg, replace=False)
+        # # neg_data = all_data[neg_idx]
+        # interval, samples = neg_idx // N_batch, neg_idx % N_batch
+        all_size = len(self.data) * self.indice[0].size(1)
+        # outputs = []
+        # for i, (data, idx) in enumerate(zip(self.data, self.indice)):
+        #     real_data = data[idx]
+        #     outputs.append(real_data)
+        # real_datas = torch.cat(outputs, 1)
+        neg_idx = np.random.choice(all_size, n_neg, replace=False)
+        real_datas = torch.cat([data[idx] for data, idx in zip(self.data, self.indice)], 1)
+        anchor = F.normalize(anchor, dim=-1)
+        real_datas = F.normalize(real_datas, dim=-1)
+
+        return torch.bmm(anchor.unsqueeze(1), real_datas[:, neg_idx, :].permute(0, 2, 1)).squeeze()
 
 
 @contextmanager
