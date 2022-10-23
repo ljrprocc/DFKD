@@ -108,13 +108,15 @@ parser.add_argument('--log_fidelity', action="store_true")
 parser.add_argument('--noisy', action="store_true")
 parser.add_argument('--memory', action="store_true")
 
-# Difficulty sampler hyperparameters
+# Difficulty sampler hyperparameters (for AdaDFKD)
 parser.add_argument('--tau', default=10, type=float, help="temperature item for unsupervised curriculum sampling.")
 parser.add_argument('--hard', default=1.0, type=float, help="hyperparmeter for hard curriculum sampling.")
 parser.add_argument('--bank_size', default=10, type=int)
 parser.add_argument('--mode', default='memory', type=str)
 parser.add_argument('--mu', default=0.5, type=float)
 parser.add_argument('--kld', default=0.1, type=float)
+parser.add_argument('--neg', default=0.1, type=float)
+parser.add_argument('--debug', action="store_true", help="Visualization of anchor, positive and negative samples")
 
 # pretrained generative model testing
 # parser.add_argument('--pretrained', action="store_true", help='Flag for whether use pretrained generative models')
@@ -513,7 +515,8 @@ def main_worker(gpu, ngpus_per_node, args):
             mu=args.mu,
             bank_size=args.bank_size,
             mode=args.mode,
-            kld=args.kld
+            kld=args.kld,
+            neg=args.neg
         )
     else: raise NotImplementedError
         

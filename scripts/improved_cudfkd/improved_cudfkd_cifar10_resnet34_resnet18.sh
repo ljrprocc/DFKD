@@ -20,7 +20,7 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 4 \
+--gpu 0 \
 --seed 0 \
 --bn 1 \
 --save_dir run/sup_cr1 \
