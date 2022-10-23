@@ -30,8 +30,8 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         N_an, N_batch = d.size()
         
         sorted_d, indice_d = torch.sort(d, dim=1)
-        d_pos = sorted_d[:, -int(0.05 * N_batch):]
-        d_neg = sorted_d[:, :-int(0.05 * N_batch)]
+        d_pos = sorted_d[:, -int(0.1 * N_batch):]
+        d_neg = sorted_d[:, :-int(0.1 * N_batch)]
         # n_neg = d_neg.size(1)
         d_mask = torch.zeros_like(indice_d)
         d_mask = d_mask.scatter(1, indice_d[:, -int(0.1*N_batch):], 1)
@@ -211,7 +211,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     neg_features = self.neg_bank.sample(self.n_neg)
                 else:
                     neg_features = None
-                loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device, neg_features=neg_features)
+                loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
                 # Update negative queue
                 # self.neg_bank.put(t_feat[neg_indice])
                 
