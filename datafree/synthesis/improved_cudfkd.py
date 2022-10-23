@@ -14,7 +14,7 @@ from datafree.criterions import jsdiv, kldiv
 from kornia import augmentation
 import numpy as np
 
-def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', d_neg=None):
+def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', d_neg_fea=None):
     batch_size = anchor.size(0)
     with torch.no_grad():
         # t_logit, anchor_t_out = teacher(anchor.to(device).detach(), return_features=True)
@@ -45,7 +45,7 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         pos_loss = torch.sum(p_pos * torch.log(p_pos / p_da_pos).abs(), dim=1).mean()
         # Get Negative DA index
         
-        if d_neg is not None:
+        if d_neg_fea is not None:
             d = torch.cat([d_neg, d_pos], 1)
             d_mask = torch.zeros_like(d)
             # d_mask[:, ]
