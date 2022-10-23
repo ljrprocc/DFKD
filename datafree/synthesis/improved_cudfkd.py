@@ -45,10 +45,6 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         pos_loss = torch.sum(p_pos * torch.log(p_pos / p_da_pos).abs(), dim=1).mean()
         # Get Negative DA index
         
-        # p_neg = torch.softmax(d_neg / tau, dim=1)
-        # Get hard negative loss
-        # if neg_features is not None:
-        #     # info_nce_sample = InfoNCE(temperature=tau)
         if d_neg is not None:
             d = torch.cat([d_neg, d_pos], 1)
             d_mask = torch.zeros_like(d)
@@ -56,9 +52,7 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         p_total = torch.softmax(d / tau, dim=1)
         # Out supervised loss.
         neg_loss = -((d_mask * p_total.log()).sum(1) / (d_mask.sum(1))).mean()
-        # In supervised loss.
-        # neg_loss = -(d_mask * p_total).sum(1).mean().log()
-        #     neg_loss = info_nce(query=anchor_t_out, positive_keys=t_out[indice_d[:, -int(0.1 * N_batch):]], negative_keys=neg_features, temperature=tau, negative_mode='paired')
+        
         return pos_loss, indice_d, neg_loss, l_kld
 
 def reset_model(model):
@@ -210,8 +204,8 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     anchor = t_feat if self.data_iter is None else self.data_iter.next()
                 else:
                     import random
-                    # random_index = random.randint(0, self.anchor_bank.size(0) - 1)
-                    anchor = self.anchor_bank.reshape(-1, self.head.in_features)
+                    random_index = random.randint(0, self.anchor_bank.size(0) - 1)
+                    anchor = self.anchor_bank[random_index]
                 # loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
                 if self.neg_bank.all_batch_num() >= self.n_neg:
                     neg_features = self.neg_bank.sample(self.n_neg)
