@@ -2,17 +2,12 @@ from distutils.command.config import LANG_EXT
 from torch import nn
 import torch
 import torch.nn.functional as F
-from torchvision import transforms
-# from info_nce import InfoNCE
 import os
 
 from .base import BaseSynthesis
-import datafree
 from datafree.hooks import DeepInversionHook
 from datafree.utils import ImagePool, DataIter, clip_images, FeaturePool, Queue
 from datafree.criterions import jsdiv, kldiv
-from kornia import augmentation
-import numpy as np
 
 def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', d_neg_fea=None):
     batch_size = anchor.size(0)
@@ -24,14 +19,14 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
     # loss = 0.
     pos_loss = 0.
     neg_loss = 0.
-    if ds == 'cifar10':
+    if ds.startswith('cifar'):
         normalized_anchor_t_out, normalized_t_out = F.normalize(anchor_t_out, dim=1), F.normalize(t_out, dim=1)
         d = torch.mm(normalized_anchor_t_out, normalized_t_out.T)
         N_an, N_batch = d.size()
         
         sorted_d, indice_d = torch.sort(d, dim=1)
-        d_pos = sorted_d[:, -int(0.1 * N_batch):]
-        d_neg = sorted_d[:, :-int(0.1 * N_batch)]
+        d_pos = sorted_d[:, -int(0.05 * N_batch):]
+        d_neg = sorted_d[:, :-int(0.05 * N_batch)]
         # n_neg = d_neg.size(1)
         d_mask = torch.zeros_like(indice_d)
         d_mask = d_mask.scatter(1, indice_d[:, -int(0.1*N_batch):], 1)
@@ -81,6 +76,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         #     shutil.rmtree(self.save_dir)
         # self.data_pool = ImagePool(root=self.save_dir, save=False)
         self.data_pool = FeaturePool(root=self.save_dir)
+        # print('********')
         self.data_iter = None
         self.transform = transform
         self.synthesis_batch_size = synthesis_batch_size
@@ -191,7 +187,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
             if not warmup:
                 if self.mode == 'memory':
                     if self.data_iter is None and len(self.data_pool.datas) > 0:
-                        dst = self.data_pool.get_dataset(transform=self.transform)
+                        dst = self.data_pool.get_dataset()
                         if self.distributed:
                             train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
                         else:
@@ -227,45 +223,41 @@ class MHDFKDSynthesizer(BaseSynthesis):
 
             loss.backward()
             self.optimizers[l].step()
-
+        # print(best_inputs)
         # if self.memory or warmup:
             # self.update_loader(best_inputs=best_inputs)
-        self.update_loader(best_inputs=t_feat)
+        if self.memory or warmup:
+            self.update_loader(best_inputs=t_feat)
         
         # self.student.train()
         return {'synthetic': best_inputs}
 
     @torch.no_grad()
     def sample(self, l=0, warmup=True):
-        # Formal Mode
-        # if not self.memory or not warmup:
-        # Global memory:
         if not self.memory:
-            # print('***********')
             self.G_list[l].eval() 
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
         else:
             inputs = self.data_iter.next()
-            # print(inputs)
-            # inputs = self.normalizer(inputs)
-            # print(inputs)
+            
         return inputs
 
     def update_loader(self, best_inputs):
         if self.mode == 'memory':
             self.data_pool.add(best_inputs)
-            # dst = self.data_pool.get_dataset(transform=self.transform)
-            dst = self.data_pool.get_dataset()
-            if self.distributed:
-                train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
-            else:
-                train_sampler = None
-            loader = torch.utils.data.DataLoader(
-                dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
-                num_workers=4, pin_memory=True, sampler=train_sampler)
-            self.data_iter = DataIter(loader)
+            if self.memory:
+                # dst = self.data_pool.get_dataset(transform=self.transform)
+                dst = self.data_pool.get_dataset()
+                if self.distributed:
+                    train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
+                else:
+                    train_sampler = None
+                loader = torch.utils.data.DataLoader(
+                    dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
+                    num_workers=4, pin_memory=True, sampler=train_sampler)
+                self.data_iter = DataIter(loader)
         else:
             import random
             bank_index = random.randint(0, self.anchor_bank.size(0) - 1)

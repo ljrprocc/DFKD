@@ -425,7 +425,7 @@ class FeaturePool(object):
         # print(self.datas[0].shape)
         # save_x = torch.cat(self.datas, 0)
         save_x = torch.stack(self.datas, 0)
-        assert len(save_x.shape) == 2
+        # assert len(save_x.shape) == 2
         torch.save(save_x, os.path.join(self.root, 'buffer.pt'))
 
     def get_dataset(self):

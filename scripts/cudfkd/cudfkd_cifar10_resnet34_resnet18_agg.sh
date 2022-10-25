@@ -6,7 +6,7 @@ python datafree_kd.py \
 --student resnet18 \
 --lr 0.1 \
 --epochs 250 \
---kd_steps 5 \
+--kd_steps 10 \
 --kd_steps_interval 10 \
 --g_steps_interval 1 \
 --ep_steps 400 \
@@ -15,22 +15,21 @@ python datafree_kd.py \
 --begin_fraction 0.25 \
 --end_fraction 0.75 \
 --grad_adv 0.5 \
---adv 0. \
+--adv 1. \
 --depth 2 \
 --T 20 \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 3 \
---seed 95 \
+--gpu 5 \
+--seed 0 \
 --bn 1 \
 --save_dir run/cudfkd_test \
---log_tag cudfkd_noisy_d \
---data_root ../cifar10/ \
+--log_tag cudfkd_retest \
+--data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 2.0 \
---noisy \
 --log_fidelity \
 --loss kl

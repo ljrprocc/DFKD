@@ -85,11 +85,12 @@ class CuDFKDSynthesizer(BaseSynthesis):
 
         for i in range(self.iterations[l]):
             z = torch.randn(self.synthesis_batch_size, self.nz).to(self.device)
-           
+            # print(z)
             G.train()
             self.optimizers[l].zero_grad()            
             mu_theta = G(z, l=l)
             samples = self.normalizer(mu_theta)
+            # print(samples)
             x_inputs = self.normalizer(samples, reverse=True)
             
             t_out, t_feat = self.teacher(samples, l=l, return_features=True)
@@ -120,11 +121,13 @@ class CuDFKDSynthesizer(BaseSynthesis):
                     best_cost = loss.item()
                     best_inputs = mu_theta
                     
-           
+
             loss.backward()
             self.optimizers[l].step()
-            if self.memory:
-                self.update_loader(best_inputs=best_inputs)
+
+        # print(best_inputs)
+        if self.memory:
+            self.update_loader(best_inputs=best_inputs)
                 
         return {'synthetic': best_inputs}
 
@@ -135,8 +138,6 @@ class CuDFKDSynthesizer(BaseSynthesis):
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
-            # print(inputs.mean())
-            # exit(-1)
         else:
             inputs = self.data_iter.next()
            

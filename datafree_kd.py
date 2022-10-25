@@ -600,9 +600,6 @@ def main_worker(gpu, ngpus_per_node, args):
                 global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0), warmup=epoch<int(args.epochs * args.begin_fraction))
                 if args.log_fidelity:
                     global_iter, avg_diff = global_iter
-                
-                # if l == 0:
-                #     vis_result = vis_results
 
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
@@ -615,8 +612,9 @@ def main_worker(gpu, ngpus_per_node, args):
         student.eval()
         eval_results = evaluator(student, device=args.gpu)
         (acc1, acc5), val_loss = eval_results['Acc'], eval_results['Loss']
-
-        if args.method.endswith('cudfkd') and (args.memory or warmup):
+        # warmup = epoch < int(args.begin_fraction * args.epochs)
+        if args.method.endswith('cudfkd') and (args.memory):
+            
             synthesizer.data_pool.save_buffer()
 
         if args.log_fidelity:
@@ -701,6 +699,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             datafree.utils.save_image_batch( vis.detach(), 'checkpoints/datafree-%s/%s.png'%(args.method, args.log_tag) )
         # print(history)
         # print(images.max(), images.min())
+        # print(images)
         if l == 0 and not history:
             images = synthesizer.normalizer(images.detach())
 
@@ -721,8 +720,9 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                 with torch.no_grad():
                     g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
-            # print(images)
-            # exit(-1)
+            # if global_iter == 10:
+            #     print(images)
+            #     exit(-1)
             # print(real_loss_s.mean(), g.mean(), v.mean())
             loss_s = (v * real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
