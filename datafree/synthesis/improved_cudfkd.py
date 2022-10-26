@@ -1,4 +1,5 @@
 from distutils.command.config import LANG_EXT
+from locale import normalize
 from torch import nn
 import torch
 import torch.nn.functional as F
@@ -7,9 +8,10 @@ import os
 from .base import BaseSynthesis
 from datafree.hooks import DeepInversionHook
 from datafree.utils import ImagePool, DataIter, clip_images, FeaturePool, Queue
+from datafree.utils import difficulty_mining
 from datafree.criterions import jsdiv, kldiv
 
-def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', d_neg_fea=None):
+def difficulty_loss(anchor, teacher, student, t_out, logit_t, ds='cifar10', hard_factor=0., tau=10, device='cpu', d_neg_fea=None):
     batch_size = anchor.size(0)
     with torch.no_grad():
         # t_logit, anchor_t_out = teacher(anchor.to(device).detach(), return_features=True)
@@ -49,6 +51,7 @@ def difficulty_loss(anchor, teacher, t_out, logit_t, ds='cifar10', hard_factor=0
         neg_loss = -((d_mask * p_total.log()).sum(1) / (d_mask.sum(1))).mean()
         
         return pos_loss, indice_d, neg_loss, l_kld
+
 
 def reset_model(model):
     for m in model.modules():
@@ -110,16 +113,11 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.n_neg = 4096
         self.neg = neg
         self.debug = debug
-        if hasattr(teacher, 'linear'):
-            self.head = teacher.linear
-        elif hasattr(teacher, 'fc'):
-            self.head = teacher.fc
-        elif hasattr(teacher, 'classifier'):
-            self.head = teacher.classifier
-        if not os.path.exists(os.path.join(self.save_dir, 'buffer.pt')):
-            self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, self.head.in_features)
-        else:
-            self.anchor_bank = torch.load(os.path.join(self.save_dir, 'buffer.pt'))
+        
+        # if not os.path.exists(os.path.join(self.save_dir, 'buffer.pt')):
+        #     self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, self.teacher.in_features)
+        # else:
+        #     self.anchor_bank = torch.load(os.path.join(self.save_dir, 'buffer.pt'))
         for i, G in enumerate(self.G_list):
             reset_model(G)
             optimizer = torch.optim.Adam(G.parameters(), self.lr_g, betas=[0.9, 0.99])
@@ -129,7 +127,26 @@ class MHDFKDSynthesizer(BaseSynthesis):
         for m in teacher.modules():
             if isinstance(m, nn.BatchNorm2d):
                 self.hooks.append(DeepInversionHook(m))
+    
+    
+    def _set_head(self, teacher, student):
+        if hasattr(teacher, 'linear'):
+            # ResNet
+            self.head = teacher.linear
+            # self.stu_head = student.linear
+        elif hasattr(teacher, 'fc'):
+            self.head = teacher.fc
+        elif hasattr(teacher, 'classifier'):
+            self.head = teacher.classifier
 
+        if hasattr(student, 'linear'):
+            # ResNet
+            self.stu_head = student.linear
+            # self.stu_head = student.linear
+        elif hasattr(student, 'fc'):
+            self.stu_head = student.fc
+        elif hasattr(student, 'classifier'):
+            self.stu_head = student.classifier
 
     def synthesize(self, l=0, gv=None, hard_factor=0., warmup=False):
         self.student.eval()
@@ -171,7 +188,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
             
             # Negative Divergence.
             if self.adv > 0:
-                s_out = self.student(samples, l=l)
+                s_out, s_feat = self.student(samples, l=l, return_features=True)
                 if self.adv_type == 'js':
                     l_js = jsdiv(s_out, t_out, T=3)
                     loss_adv = 1.0-torch.clamp(l_js, 0.0, 1.0)
@@ -184,36 +201,37 @@ class MHDFKDSynthesizer(BaseSynthesis):
             # After Warmup, should include the following positive-negative pairs objectives.
             # Anchor sampling:
             # warmup = True
-            if not warmup:
-                if self.mode == 'memory':
-                    if self.data_iter is None and len(self.data_pool.datas) > 0:
-                        dst = self.data_pool.get_dataset()
-                        if self.distributed:
-                            train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
-                        else:
-                            train_sampler = None
-                        loader = torch.utils.data.DataLoader(
-                            dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
-                            num_workers=4, pin_memory=True, sampler=train_sampler)
-                        self.data_iter = DataIter(loader)
+            # if not warmup:
+                # if self.mode == 'memory':
+                #     if self.data_iter is None and len(self.data_pool.datas) > 0:
+                #         dst = self.data_pool.get_dataset()
+                #         if self.distributed:
+                #             train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
+                #         else:
+                #             train_sampler = None
+                #         loader = torch.utils.data.DataLoader(
+                #             dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
+                #             num_workers=4, pin_memory=True, sampler=train_sampler)
+                #         self.data_iter = DataIter(loader)
                     
-                    anchor = t_feat if self.data_iter is None else self.data_iter.next()
-                else:
-                    import random
-                    random_index = random.randint(0, self.anchor_bank.size(0) - 1)
-                    anchor = self.anchor_bank[random_index]
-                # loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                if self.neg_bank.all_batch_num() >= self.n_neg:
-                    neg_features = self.neg_bank.sample(self.n_neg)
-                else:
-                    neg_features = None
-                loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                # Update negative queue
-                # self.neg_bank.put(t_feat[neg_indice])
+                #     anchor = t_feat if self.data_iter is None else self.data_iter.next()
+                # else:
+                #     import random
+                #     random_index = random.randint(0, self.anchor_bank.size(0) - 1)
+                #     anchor = self.anchor_bank[random_index]
+                # # loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
+                # if self.neg_bank.all_batch_num() >= self.n_neg:
+                #     neg_features = self.neg_bank.sample(self.n_neg)
+                # else:
+                #     neg_features = None
+                # loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, self.stu_head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
+                # # Update negative queue
+                # # self.neg_bank.put(t_feat[neg_indice])
                 
-                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
-            else:
-                loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
+                # loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
+            loss_t_s, loss_nce, loss_neg = difficulty_mining(t_feat, s_feat, hard_factor, self.tau, self.device, return_cnce=True)
+            # else:
+            loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.neg * loss_neg + self.hard * loss_nce
             
             with torch.no_grad():
                 if best_cost > loss.item() or best_inputs is None:
@@ -226,8 +244,8 @@ class MHDFKDSynthesizer(BaseSynthesis):
         # print(best_inputs)
         # if self.memory or warmup:
             # self.update_loader(best_inputs=best_inputs)
-        if self.memory or warmup:
-            self.update_loader(best_inputs=t_feat)
+        # if self.memory or warmup:
+        #     self.update_loader(best_inputs=t_feat)
         
         # self.student.train()
         return {'synthetic': best_inputs}
@@ -248,8 +266,8 @@ class MHDFKDSynthesizer(BaseSynthesis):
         if self.mode == 'memory':
             self.data_pool.add(best_inputs)
             if self.memory:
-                # dst = self.data_pool.get_dataset(transform=self.transform)
-                dst = self.data_pool.get_dataset()
+                dst = self.data_pool.get_dataset(transform=self.transform)
+                # dst = self.data_pool.get_dataset()
                 if self.distributed:
                     train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
                 else:
@@ -258,10 +276,10 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
                     num_workers=4, pin_memory=True, sampler=train_sampler)
                 self.data_iter = DataIter(loader)
-        else:
-            import random
-            bank_index = random.randint(0, self.anchor_bank.size(0) - 1)
+        # else:
+        #     import random
+        #     bank_index = random.randint(0, self.anchor_bank.size(0) - 1)
             
-            self.anchor_bank[bank_index] = best_inputs.detach().cpu() * self.mu + self.anchor_bank[bank_index] * (1 - self.mu)
-            self.data_pool.add(self.anchor_bank, replace=True)
+        #     self.anchor_bank[bank_index] = best_inputs.detach().cpu() * self.mu + self.anchor_bank[bank_index] * (1 - self.mu)
+        #     self.data_pool.add(self.anchor_bank, replace=True)
 

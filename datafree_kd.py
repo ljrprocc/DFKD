@@ -26,6 +26,7 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import torchvision.models as models
+from datafree.utils import difficulty_mining
 
 
 parser = argparse.ArgumentParser(description='Data-free Knowledge Distillation')
@@ -593,7 +594,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     vis_result = synthesizer.synthesize() # g_steps
                 else:
                     warmup = epoch < int(args.begin_fraction * args.epochs)
-                    hard_factor = min(max(0, epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction)), 1)
+                    hard_factor = min(max(0, 0.5 * (epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction))), 0.5)
                     vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=warmup)
                 # 2. Knowledge distillation
                 # kd_steps
@@ -709,12 +710,19 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             with torch.no_grad():
                 t_out, t_feat = teacher(images, return_features=True)
             
-            s_out = student(images.detach())
+            s_out, s_feat = student(images.detach(), return_features=True)
+            
             loss_s = criterion(s_out, t_out.detach())
+            if args.method == 'improved_cudfkd':
+                # print(t_feat, s_feat)
+                loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
+                # print(loss_t_feat, loss_infonce)
+                # loss_s += loss_infonce * 1.0
 
         avg_diff = 0
         if args.curr_option != 'none':
             real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            real_loss_s += loss_infonce * 0.1
             
             if args.curr_option.startswith('curr'):
                 with torch.no_grad():
@@ -723,7 +731,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             # if global_iter == 10:
             #     print(images)
             #     exit(-1)
-            # print(real_loss_s.mean(), g.mean(), v.mean())
+            # print(real_loss_s.mean().item(), v.mean().item(), loss_infonce.item())
             loss_s = (v * real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()

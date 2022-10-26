@@ -20,11 +20,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 3 \
+--gpu 1 \
 --seed 0 \
 --bn 1 \
---save_dir run/sup_cr2_0_05_speedup \
---log_tag sup_cr2_0_05_speedup \
+--save_dir run/infonce_s_exp1 \
+--log_tag infonce_s_exp1 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -32,8 +32,8 @@ python datafree_kd.py \
 --lambda_0 2.0 \
 --log_fidelity \
 --mode memory \
---hard 1.0 \
---kld 0.5 \
+--hard 0.0 \
+--kld 0.0 \
 --tau 0.07 \
---neg 0.1 \
+--neg 0.0 \
 --loss kl

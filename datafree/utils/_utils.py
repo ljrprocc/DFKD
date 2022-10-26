@@ -599,4 +599,30 @@ def get_alpha_adv(epoch, args, ori_adv, type='constant'):
             return ori_adv
     else:
         return ori_adv
-        
+
+def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu', return_cnce=False):
+    
+    normalized_t, normalized_s = F.normalize(t_feat, dim=-1), F.normalize(s_feat, dim=-1)
+    
+    d = torch.mm(normalized_t, normalized_s.T)
+    n = d.size(0)
+    # Div(t, s) at feature map space.
+    p = torch.softmax(d / tau, 1)
+    # print(p, d)
+    # exit(-1)
+    loss_t_s = -p.log().diag().mean()
+    # InfoNCE base, instance level supervision
+    # Maximize MI between teacher and student
+    label = torch.arange(len(t_feat), dtype=torch.long, device=device)
+    loss_infonce = F.cross_entropy(d / tau, label, reduction='mean')
+    if not return_cnce:
+        return loss_t_s, loss_infonce
+    # Difficulty adjust, CNCE
+    negs = d.flatten()[:-1].view(n-1, n+1)[:, 1:].reshape(-1, n-1)
+    poss = d.diag().unsqueeze(1)
+    _, indice_neg = torch.sort(negs, 1)
+    dynamic_neg = negs.gather(1, indice_neg[:, int((n - 1) * hard_factor):int((n - 1) * (hard_factor + 0.5))])
+    new_d = torch.cat([poss, dynamic_neg], dim=1)
+    new_label = torch.zeros(n, dtype=torch.long, device=device)
+    loss_cnce = F.cross_entropy(new_d / tau, new_label, reduction='mean')
+    return loss_t_s.mean(), loss_infonce.mean(), loss_cnce
