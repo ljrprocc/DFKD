@@ -115,7 +115,7 @@ parser.add_argument('--hard', default=1.0, type=float, help="hyperparmeter for h
 parser.add_argument('--s_nce', default=0.1, type=float)
 parser.add_argument('--mode', default='memory', type=str)
 parser.add_argument('--mu', default=0.5, type=float)
-parser.add_argument('--kld', default=0.1, type=float)
+parser.add_argument('--length', default=1.0, type=float)
 parser.add_argument('--neg', default=0.1, type=float)
 parser.add_argument('--debug', action="store_true", help="Visualization of anchor, positive and negative samples")
 
@@ -514,9 +514,7 @@ def main_worker(gpu, ngpus_per_node, args):
             hard=args.hard,
             tau=args.tau,
             mu=args.mu,
-            bank_size=args.bank_size,
             mode=args.mode,
-            kld=args.kld,
             neg=args.neg
         )
     else: raise NotImplementedError
@@ -594,7 +592,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     vis_result = synthesizer.synthesize() # g_steps
                 else:
                     warmup = epoch < int(args.begin_fraction * args.epochs)
-                    hard_factor = min(max(0, 0.5 * (epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction))), 0.5)
+                    hard_factor = min(max(0, (1 - args.length) * (epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction))), 1 - args.length)
                     vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=warmup)
                 # 2. Knowledge distillation
                 # kd_steps
@@ -604,6 +602,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
+            
         
         if vis_result is not None:
             for vis_name, vis_image in vis_result.items():
@@ -716,6 +715,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             if args.method == 'improved_cudfkd':
                 # print(t_feat, s_feat)
                 loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
+                # loss_infonce = synthesizer.neg_bank(t_feat, s_feat, hard_factor=0., length=1)
                 # print(loss_t_feat, loss_infonce)
                 # loss_s += loss_infonce * 1.0
 

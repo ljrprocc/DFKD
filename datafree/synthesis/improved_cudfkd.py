@@ -206,8 +206,8 @@ class MHDFKDSynthesizer(BaseSynthesis):
                 loss_adv = torch.zeros(1).to(self.device)
             
             
-            loss_t_s, loss_nce, loss_neg = difficulty_mining(t_feat, s_feat, hard_factor, self.tau, self.device, return_cnce=True)
-            #loss_nce = self.neg_bank(t_feat, s_feat, hard_factor, length=0.5)
+            # loss_t_s, loss_nce, loss_neg = difficulty_mining(t_feat, s_feat, hard_factor, self.tau, self.device, return_cnce=True)
+            loss_nce = self.neg_bank(t_feat, s_feat, hard_factor, length=0.5)
             # else:
             loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_nce
             
