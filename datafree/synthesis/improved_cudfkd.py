@@ -7,7 +7,7 @@ import os
 
 from .base import BaseSynthesis
 from datafree.hooks import DeepInversionHook
-from datafree.utils import ImagePool, DataIter, clip_images, FeaturePool, Queue
+from datafree.utils import ImagePool, DataIter, MoCo, FeaturePool, Queue
 from datafree.utils import difficulty_mining
 from datafree.criterions import jsdiv, kldiv
 
@@ -65,7 +65,7 @@ def reset_model(model):
 
 
 class MHDFKDSynthesizer(BaseSynthesis):
-    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, bank_size=10, mode='memory', kld=0.1, neg=0.1, debug=False):
+    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, bank_size=10, mode='memory', neg=0.1, debug=False):
         super(MHDFKDSynthesizer, self).__init__(teacher, student)
         self.save_dir = save_dir
         self.img_size = img_size 
@@ -97,7 +97,15 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.l1 = l1
         self.bn = bn
         self.distributed = distributed
-        self.neg_bank = Queue(capacity=100)
+        # self.neg_bank = Queue(capacity=100)
+        if hasattr(self.teacher, 'linear'):
+            dims = self.teacher.linear.in_features
+        elif hasattr(self.teacher, 'fc'):
+            dims = self.teacher.fc.in_features
+        else:
+            dims = self.teacher.classifier.in_features
+        
+        self.neg_bank = MoCo(dim=dims, K=4096, T=tau, device=device)
         
         self.oh = oh
         self.act = act
@@ -109,7 +117,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.hard = hard
         self.mu = mu
         self.mode = mode
-        self.kld = kld
         self.n_neg = 4096
         self.neg = neg
         self.debug = debug
@@ -198,40 +205,11 @@ class MHDFKDSynthesizer(BaseSynthesis):
             else:
                 loss_adv = torch.zeros(1).to(self.device)
             
-            # After Warmup, should include the following positive-negative pairs objectives.
-            # Anchor sampling:
-            # warmup = True
-            # if not warmup:
-                # if self.mode == 'memory':
-                #     if self.data_iter is None and len(self.data_pool.datas) > 0:
-                #         dst = self.data_pool.get_dataset()
-                #         if self.distributed:
-                #             train_sampler = torch.utils.data.distributed.DistributedSampler(dst)
-                #         else:
-                #             train_sampler = None
-                #         loader = torch.utils.data.DataLoader(
-                #             dst, batch_size=self.sample_batch_size, shuffle=(train_sampler is None),
-                #             num_workers=4, pin_memory=True, sampler=train_sampler)
-                #         self.data_iter = DataIter(loader)
-                    
-                #     anchor = t_feat if self.data_iter is None else self.data_iter.next()
-                # else:
-                #     import random
-                #     random_index = random.randint(0, self.anchor_bank.size(0) - 1)
-                #     anchor = self.anchor_bank[random_index]
-                # # loss_hard, loss_pos, loss_neg, loss_kld = difficulty_loss(anchor, self.teacher, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                # if self.neg_bank.all_batch_num() >= self.n_neg:
-                #     neg_features = self.neg_bank.sample(self.n_neg)
-                # else:
-                #     neg_features = None
-                # loss_hard, neg_indice, loss_neg, loss_kld = difficulty_loss(anchor, self.head, self.stu_head, t_feat, logit_t=t_out, hard_factor=hard_factor, tau=self.tau, device=self.device)
-                # # Update negative queue
-                # # self.neg_bank.put(t_feat[neg_indice])
-                
-                # loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_hard + self.kld * loss_kld + self.neg * loss_neg
+            
             loss_t_s, loss_nce, loss_neg = difficulty_mining(t_feat, s_feat, hard_factor, self.tau, self.device, return_cnce=True)
+            #loss_nce = self.neg_bank(t_feat, s_feat, hard_factor, length=0.5)
             # else:
-            loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.neg * loss_neg + self.hard * loss_nce
+            loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn + self.hard * loss_nce
             
             with torch.no_grad():
                 if best_cost > loss.item() or best_inputs is None:
@@ -241,11 +219,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
 
             loss.backward()
             self.optimizers[l].step()
-        # print(best_inputs)
-        # if self.memory or warmup:
-            # self.update_loader(best_inputs=best_inputs)
-        # if self.memory or warmup:
-        #     self.update_loader(best_inputs=t_feat)
         
         # self.student.train()
         return {'synthetic': best_inputs}
