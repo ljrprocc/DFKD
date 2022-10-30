@@ -105,7 +105,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         else:
             dims = self.teacher.classifier.in_features
         
-        self.neg_bank = MoCo(dim=dims, K=4096, T=tau, device=device)
+        self.neg_bank = MoCo(dim=dims, K=6144, T=tau, device=device)
         
         self.oh = oh
         self.act = act
