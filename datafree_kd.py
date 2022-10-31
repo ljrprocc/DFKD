@@ -112,7 +112,7 @@ parser.add_argument('--memory', action="store_true")
 # Difficulty sampler hyperparameters (for AdaDFKD)
 parser.add_argument('--tau', default=10, type=float, help="temperature item for unsupervised curriculum sampling.")
 parser.add_argument('--hard', default=1.0, type=float, help="hyperparmeter for hard curriculum sampling.")
-parser.add_argument('--s_nce', default=0.1, type=float)
+parser.add_argument('--s_nce', default=0.0, type=float)
 parser.add_argument('--mode', default='memory', type=str)
 parser.add_argument('--mu', default=0.5, type=float)
 parser.add_argument('--length', default=1.0, type=float)
@@ -722,7 +722,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         avg_diff = 0
         if args.curr_option != 'none':
             real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
-            real_loss_s += loss_infonce * args.s_nce
+            if args.s_nce > 0:
+                real_loss_s += loss_infonce * args.s_nce
             
             if args.curr_option.startswith('curr'):
                 with torch.no_grad():

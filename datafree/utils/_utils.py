@@ -691,14 +691,14 @@ class MoCo(nn.Module):
 
         batch_size = keys.shape[0]
 
-        # ptr = int(self.queue_ptr)
-        # assert self.K % batch_size == 0  # for simplicity
+        ptr = int(self.queue_ptr)
+        assert self.K % batch_size == 0  # for simplicity
 
         # replace the keys at ptr (dequeue and enqueue)
         self.queue[:, ptr:ptr + batch_size] = keys.T
         ptr = (ptr + batch_size) % self.K  # move pointer
 
-        # self.queue_ptr[0] = ptr
+        self.queue_ptr[0] = ptr
 
     @torch.no_grad()
     def _batch_shuffle_ddp(self, x):
