@@ -25,7 +25,7 @@ def reset_model(model):
 
 
 class MHDFKDSynthesizer(BaseSynthesis):
-    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, k=1., mode='memory', neg=0.1, debug=False):
+    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, k=1., mode='memory', neg=0.1, debug=False, n_neg=6144):
         super(MHDFKDSynthesizer, self).__init__(teacher, student)
         self.save_dir = save_dir
         self.img_size = img_size 
@@ -78,7 +78,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.hard = hard
         self.mu = mu
         self.mode = mode
-        self.n_neg = 4096
+        self.n_neg = n_neg
         self.neg = neg
         self.debug = debug
         
@@ -165,7 +165,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                 if t_feat.size()[-1] != s_feat.size()[-1]:
                     project_layer = torch.nn.Linear(s_feat.size()[-1], t_feat.size()[-1]).to(self.device)
                     # print(project_layer)
-                    s_feat = project_layer(F.relu(s_feat))
+                    s_feat = project_layer(s_feat)
                 loss_cnce = self.neg_bank(t_feat, s_feat, hard_factor, length=self.k)
                 loss += self.hard * loss_cnce
             with torch.no_grad():

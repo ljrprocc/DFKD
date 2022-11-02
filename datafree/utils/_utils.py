@@ -607,7 +607,7 @@ def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu', re
     if t_feat.size()[-1] != s_feat.size()[-1]:
         project_layer = torch.nn.Linear(s_feat.size()[-1], t_feat.size()[-1]).to(device)
         # print(project_layer)
-        s_feat = project_layer(F.relu(s_feat))
+        s_feat = project_layer(s_feat)
     normalized_t, normalized_s = F.normalize(t_feat, dim=-1), F.normalize(s_feat, dim=-1)
     
     d = torch.mm(normalized_t, normalized_s.T)
@@ -624,15 +624,6 @@ def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu', re
     loss_infonce = F.cross_entropy(d / tau, label, reduction='mean')
     if not return_cnce:
         return loss_s_t, loss_infonce
-    # Difficulty adjust, CNCE
-    negs = d.flatten()[:-1].view(n-1, n+1)[:, 1:].reshape(-1, n-1)
-    poss = d.diag().unsqueeze(1)
-    _, indice_neg = torch.sort(negs, 1)
-    dynamic_neg = negs.gather(1, indice_neg[:, int((n - 1) * hard_factor):int((n - 1) * (hard_factor + 0.5))])
-    new_d = torch.cat([poss, dynamic_neg], dim=1)
-    new_label = torch.zeros(n, dtype=torch.long, device=device)
-    loss_cnce = F.cross_entropy(new_d / tau, new_label, reduction='mean')
-    return loss_s_t.mean(), loss_infonce.mean(), loss_cnce
 
 
 
@@ -646,7 +637,7 @@ class MoCo(nn.Module):
         """
         dim: feature dimension (default: 128)
         K: queue size; number of negative keys (default: 65536)
-        m: moco momentum of updating key encoder (default: 0.999)
+        m: moco momentum of updating key encoder (default: 0.999, not implemented here.)
         T: softmax temperature (default: 0.07)
         """
         super(MoCo, self).__init__()
@@ -799,6 +790,7 @@ class MoCo(nn.Module):
 
         # dequeue and enqueue
         self._dequeue_and_enqueue(k)
+        self._dequeue_and_enqueue(q)
 
         loss = F.cross_entropy(logits, labels, reduction='mean')
 

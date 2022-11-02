@@ -117,6 +117,7 @@ parser.add_argument('--mode', default='memory', type=str)
 parser.add_argument('--mu', default=0.5, type=float)
 parser.add_argument('--length', default=1.0, type=float)
 parser.add_argument('--neg', default=0.1, type=float)
+parser.add_argument('--N_neg', default=6144, type=int)
 parser.add_argument('--debug', action="store_true", help="Visualization of anchor, positive and negative samples")
 
 # pretrained generative model testing
@@ -515,7 +516,8 @@ def main_worker(gpu, ngpus_per_node, args):
             tau=args.tau,
             mu=args.mu,
             mode=args.mode,
-            neg=args.neg
+            neg=args.neg,
+            n_neg=args.N_neg
         )
     else: raise NotImplementedError
         
