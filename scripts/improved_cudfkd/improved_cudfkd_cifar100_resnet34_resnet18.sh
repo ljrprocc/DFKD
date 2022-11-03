@@ -21,11 +21,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 3 \
+--gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_res_exp2_100_t \
---log_tag infonce_res_exp2_100_t \
+--save_dir run/infonce_res_exp2_100_t_more_neg \
+--log_tag infonce_res_exp2_100_t_more_neg \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \

@@ -8,7 +8,7 @@ import shutil
 from .base import BaseSynthesis
 import datafree
 from datafree.hooks import DeepInversionHook
-from datafree.utils import MoCo, DataIter, clip_images, FeaturePool
+from datafree.utils import MoCo, DataIter, FeaturePool
 from datafree.criterions import jsdiv, kldiv
 from datafree.datasets.utils import curr_v, lambda_scheduler  
 
@@ -66,7 +66,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         else:
             dims = self.teacher.classifier.in_features
         
-        self.neg_bank = MoCo(dim=dims, K=6144, T=tau, device=device)
+        self.neg_bank = MoCo(dim=dims, K=n_neg, T=tau, device=device)
         
         self.oh = oh
         self.act = act
@@ -181,6 +181,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         #     self.update_loader(best_inputs=best_inputs)
         
         # self.student.train()
+        # print(best_inputs)
         return {'synthetic': best_inputs}
 
     @torch.no_grad()
@@ -188,8 +189,10 @@ class MHDFKDSynthesizer(BaseSynthesis):
         if not self.memory:
             self.G_list[l].eval() 
             z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
+            # print(z)
             targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
             inputs = self.G_list[l](z, l=l)
+            # print(inputs)
         else:
             inputs = self.data_iter.next()
             

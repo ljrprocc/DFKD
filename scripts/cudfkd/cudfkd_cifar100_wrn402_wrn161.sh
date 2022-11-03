@@ -3,7 +3,7 @@ python datafree_kd.py \
 --dataset cifar100 \
 --batch_size 1024 \
 --teacher wrn40_2 \
---student wrn16_2 \
+--student wrn40_1 \
 --lr 0.1 \
 --epochs 300 \
 --kd_steps 5 \
@@ -12,25 +12,24 @@ python datafree_kd.py \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \
---adv 1. \
+--adv 0. \
 --depth 2 \
 --T 2 \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 1 \
+--gpu 4 \
 --seed 0 \
 --bn 1 \
---save_dir run/cudfkd_test \
---log_tag cudfkd_L2_non_gen_adv \
---begin_fraction 0.2 \
---end_fraction 0.75 \
---grad_adv 0.0 \
+--save_dir run/cudfkd_retest_2 \
+--log_tag cudfkd_L2_retest_2 \
+--begin_fraction 0.05 \
+--end_fraction 0.8 \
+--grad_adv 0.1 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1 \
 --log_fidelity \
---memory \
 --loss kl

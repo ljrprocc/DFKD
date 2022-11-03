@@ -717,7 +717,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             if args.method == 'improved_cudfkd':
                 # print(t_feat, s_feat)
                 loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
-                # loss_infonce = synthesizer.neg_bank(t_feat, s_feat, hard_factor=0., length=1)
+                loss_infonce = synthesizer.neg_bank(t_feat, s_feat, hard_factor=0., length=1)
                 # print(loss_t_feat, loss_infonce)
                 # loss_s += loss_infonce * 1.0
 
@@ -734,7 +734,9 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             # if global_iter == 10:
             #     print(images)
             #     exit(-1)
-            # print(real_loss_s.mean().item(), v.mean().item(), loss_infonce.item())
+            # print(real_loss_s.mean().item(), v.mean().item())
+            # exit(-1)
+
             loss_s = (v * real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()

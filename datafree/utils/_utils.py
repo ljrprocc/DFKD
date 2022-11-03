@@ -661,7 +661,7 @@ class MoCo(nn.Module):
         #     param_k.requires_grad = False  # not update by gradient
 
         # create the queue
-        self.register_buffer("queue", torch.randn(dim, K))
+        self.register_buffer("queue", torch.ones(dim, K))
         self.queue = nn.functional.normalize(self.queue, dim=0)
         self.device = device
 
@@ -790,7 +790,7 @@ class MoCo(nn.Module):
 
         # dequeue and enqueue
         self._dequeue_and_enqueue(k)
-        self._dequeue_and_enqueue(q)
+        # self._dequeue_and_enqueue(q)
 
         loss = F.cross_entropy(logits, labels, reduction='mean')
 
