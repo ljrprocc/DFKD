@@ -410,12 +410,18 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
+        # if args.loss == 'l1':
+        #     criterion = torch.nn.L1Loss(reduction=reduct)
+        # elif args.loss == 'l2':
+        #     criterion = torch.nn.MSELoss(reduction=reduct)
+        # else:
+        #     criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
         if args.loss == 'l1':
-            criterion = torch.nn.L1Loss(reduction=reduct)
+            criterion = torch.nn.L1Loss()
         elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss(reduction=reduct)
+            criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+            criterion = datafree.criterions.KLDiv(T=args.T)
             # criterion = datafree.criterions.KLDiv(T=args.T, reduction='batchmean')
         # t_criterion = datafree.criterions.KLDiv(T=args.T)
         if args.no_feature:
@@ -472,12 +478,18 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
+        # if args.loss == 'l1':
+        #     criterion = torch.nn.L1Loss(reduction=reduct)
+        # elif args.loss == 'l2':
+        #     criterion = torch.nn.MSELoss(reduction=reduct)
+        # else:
+        #     criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
         if args.loss == 'l1':
-            criterion = torch.nn.L1Loss(reduction=reduct)
+            criterion = torch.nn.L1Loss()
         elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss(reduction=reduct)
+            criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+            criterion = datafree.criterions.KLDiv(T=args.T)
         nz=512 if args.dataset.startswith('cifar') else 1024
         widen_factor = 1
         if args.teacher.startswith('wrn'):
@@ -603,7 +615,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     global_iter, avg_diff = global_iter
 
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
-            synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='constant')
+            synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='linear')
             
         
         if vis_result is not None:
@@ -716,14 +728,15 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             loss_s = criterion(s_out, t_out.detach())
             if args.method == 'improved_cudfkd':
                 # print(t_feat, s_feat)
-                loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
+                loss_t_feat, loss_infonce, s_feat = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
                 loss_infonce = synthesizer.neg_bank(t_feat, s_feat, hard_factor=0., length=1)
                 # print(loss_t_feat, loss_infonce)
                 # loss_s += loss_infonce * 1.0
 
         avg_diff = 0
         if args.curr_option != 'none':
-            real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            # real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            real_loss_s = loss_s
             if args.s_nce > 0:
                 real_loss_s += loss_infonce * args.s_nce
             
@@ -737,7 +750,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             # print(real_loss_s.mean().item(), v.mean().item())
             # exit(-1)
 
-            loss_s = (v * real_loss_s).mean()
+            loss_s = (v * real_loss_s).sum() + g
+            # loss_s = (v*real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
         if args.fp16:

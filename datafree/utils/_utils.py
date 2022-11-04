@@ -585,7 +585,7 @@ def copy_state_dict(G1, G2, l):
     G1.trans_convs[-l].load_state_dict(G2.trans_convs[-l].state_dict())
 
 def get_alpha_adv(epoch, args, ori_adv, type='constant'):
-    if epoch  >= int(args.epochs * args.begin_fraction) and epoch < int(args.epochs * args.end_fraction) and args.curr_option != 'none': 
+    if epoch  > int(args.epochs * args.begin_fraction) and epoch < int(args.epochs * args.end_fraction) and args.curr_option != 'none': 
         if type == 'linear':
             return ori_adv + (epoch - int(args.epochs * args.begin_fraction)) * args.grad_adv
         elif type == 'interval':
@@ -602,7 +602,7 @@ def get_alpha_adv(epoch, args, ori_adv, type='constant'):
     else:
         return ori_adv
 
-def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu', return_cnce=False):
+def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu'):
     # print(t_feat.shape, s_feat.shape)
     if t_feat.size()[-1] != s_feat.size()[-1]:
         project_layer = torch.nn.Linear(s_feat.size()[-1], t_feat.size()[-1]).to(device)
@@ -622,8 +622,7 @@ def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu', re
     # Maximize MI between teacher and student
     label = torch.arange(len(t_feat), dtype=torch.long, device=device)
     loss_infonce = F.cross_entropy(d / tau, label, reduction='mean')
-    if not return_cnce:
-        return loss_s_t, loss_infonce
+    return loss_s_t, loss_infonce, s_feat
 
 
 
