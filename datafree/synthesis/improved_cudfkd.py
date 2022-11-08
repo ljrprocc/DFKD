@@ -12,7 +12,6 @@ from datafree.utils import MoCo, DataIter, FeaturePool
 from datafree.criterions import jsdiv, kldiv
 from datafree.datasets.utils import curr_v, lambda_scheduler  
 
-
 def reset_model(model):
     for m in model.modules():
         if isinstance(m, (nn.ConvTranspose2d, nn.Linear, nn.Conv2d)):
@@ -59,14 +58,19 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.k = k
         self.distributed = distributed
         # self.neg_bank = Queue(capacity=100)
-        if hasattr(self.teacher, 'linear'):
-            dims = self.teacher.linear.in_features
-        elif hasattr(self.teacher, 'fc'):
-            dims = self.teacher.fc.in_features
+        if distributed:
+            mod = self.teacher.module
         else:
-            dims = self.teacher.classifier.in_features
+            mod = self.teacher
         
-        self.neg_bank = MoCo(dim=dims, K=n_neg, T=tau, device=device)
+        if hasattr(mod, 'linear'):
+            dims = mod.linear.in_features
+        elif hasattr(mod, 'fc'):
+            dims = mod.fc.in_features
+        else:
+            dims = mod.classifier.in_features
+        
+        self.neg_bank = MoCo(dim=dims, K=n_neg, T=tau, device=device, distributed=distributed)
         
         self.oh = oh
         self.act = act
@@ -83,7 +87,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.debug = debug
         
         # if not os.path.exists(os.path.join(self.save_dir, 'buffer.pt')):
-        #     self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, self.teacher.in_features)
+        #     self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, module.in_features)
         # else:
         #     self.anchor_bank = torch.load(os.path.join(self.save_dir, 'buffer.pt'))
         for i, G in enumerate(self.G_list):
@@ -162,6 +166,8 @@ class MHDFKDSynthesizer(BaseSynthesis):
             
             loss = self.lmda_ent * ent + self.adv * loss_adv+ self.oh * loss_oh + self.act * loss_act + self.bn * loss_bn
             if self.hard > 0:
+                if self.adv == 0:
+                    s_out, s_feat = self.student(samples, l=l, return_features=True)
                 if t_feat.size()[-1] != s_feat.size()[-1]:
                     project_layer = torch.nn.Linear(s_feat.size()[-1], t_feat.size()[-1]).to(self.device)
                     # print(project_layer)

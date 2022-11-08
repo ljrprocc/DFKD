@@ -632,7 +632,7 @@ class MoCo(nn.Module):
     https://arxiv.org/abs/1911.05722
     Here use framework of MoCo, does not including mementum updating.
     """
-    def __init__(self, dim=128, K=65536, T=0.07, device='cpu'):
+    def __init__(self, dim=128, K=65536, T=0.07, device='cpu', distributed=False):
         """
         dim: feature dimension (default: 128)
         K: queue size; number of negative keys (default: 65536)
@@ -644,6 +644,7 @@ class MoCo(nn.Module):
         self.K = K
         # self.m = m
         self.T = T
+        self.distributed = distributed
 
         # create the encoders
         # num_classes is the output fc dimension
@@ -660,7 +661,7 @@ class MoCo(nn.Module):
         #     param_k.requires_grad = False  # not update by gradient
 
         # create the queue
-        self.register_buffer("queue", torch.ones(dim, K))
+        self.register_buffer("queue", torch.randn(dim, K))
         self.queue = nn.functional.normalize(self.queue, dim=0)
         self.device = device
 
@@ -677,7 +678,8 @@ class MoCo(nn.Module):
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
         # gather keys before updating queue
-        # keys = concat_all_gather(keys)
+        if self.distributed:
+            keys = concat_all_gather(keys)
 
         batch_size = keys.shape[0]
 
@@ -755,13 +757,15 @@ class MoCo(nn.Module):
             # self._momentum_update_key_encoder()  # update the key encoder
 
             # shuffle for making use of BN
-            # im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
+            if self.distributed:
+                im_k, idx_unshuffle = self._batch_shuffle_ddp(im_k)
 
             # k = self.encoder_k(im_k)  # keys: NxC
             k = F.normalize(im_k, dim=1)
 
             # undo shuffles
-            # k = self._batch_unshuffle_ddp(k, idx_unshuffle)
+            if self.distributed:
+                k = self._batch_unshuffle_ddp(k, idx_unshuffle)
 
         # compute logits
         # Einstein sum is more intuitive

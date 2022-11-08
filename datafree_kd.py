@@ -120,11 +120,6 @@ parser.add_argument('--neg', default=0.1, type=float)
 parser.add_argument('--N_neg', default=6144, type=int)
 parser.add_argument('--debug', action="store_true", help="Visualization of anchor, positive and negative samples")
 
-# pretrained generative model testing
-# parser.add_argument('--pretrained', action="store_true", help='Flag for whether use pretrained generative models')
-parser.add_argument('--pretrained_mode', type=str, default='gan', choices=['gan', 'vae', 'glow', 'diffusion', 'sde', 'ebm'])
-parser.add_argument('--pretrained_G_weight', type=str, default='', help='The path to the pretrained generative models.')
-
 # Device
 parser.add_argument('--gpu', default=None, type=int,
                     help='GPU id to use.')
@@ -284,6 +279,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 # When using a single GPU per process and per
                 # DistributedDataParallel, we need to divide the batch size
                 # ourselves based on the total number of GPUs we have
+                # print(ngpus_per_node)
                 args.batch_size = int(args.batch_size / ngpus_per_node)
                 args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
                 model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
@@ -318,10 +314,19 @@ def main_worker(gpu, ngpus_per_node, args):
         teacher.maxpool = nn.Sequential()
     args.normalizer = normalizer = datafree.utils.Normalizer(**registry.NORMALIZE_DICT[args.dataset])
     # teacher.load_state_dict(torch.load('checkpoints/scratch/%s_%s.pth'%(args.dataset, args.teacher), map_location='cpu')['state_dict'])
+    
     if args.noisy:
-        teacher.load_state_dict(torch.load('checkpoints/scratch_i/%s_%s.pth'%(args.dataset, args.teacher), map_location='cpu')['state_dict'])
+        ckpt = torch.load('checkpoints/scratch_i/%s_%s.pth'%(args.dataset, args.teacher), map_location='cpu')['state_dict']
     else:
-        teacher.load_state_dict(torch.load('checkpoints/scratch/%s_%s.pth'%(args.dataset, args.teacher), map_location='cpu')['state_dict'])
+        # print('checkpoints/scratch/%s_%s.pth'%(args.dataset, args.teacher))
+        ckpt = torch.load('checkpoints/scratch/%s_%s.pth'%(args.dataset, args.teacher), map_location='cpu')['state_dict']
+    # if args.gpu == 0:
+    #     print(ckpt['state_dict'].keys())
+    # exit(-1)
+    if args.distributed:
+        ckpt = {'.'.join(k.split('.')[1:]):v for k,v in ckpt.items()}
+
+    teacher.load_state_dict(ckpt)
     student = prepare_model(student)
     teacher = prepare_model(teacher)
     criterion = datafree.criterions.KLDiv(T=args.T)
@@ -330,7 +335,7 @@ def main_worker(gpu, ngpus_per_node, args):
     g_steps = args.g_steps_interval.split(',')
     g_step = [int(x) for x in g_steps]
     g_steps = g_step[0]
-
+    # print(args.batch_size)
     
     ############################################
     # Setup data-free synthesizers
@@ -445,6 +450,7 @@ def main_worker(gpu, ngpus_per_node, args):
             tg = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
             tg = prepare_model(tg)
             G_list.append(tg)
+            # print(args.synthesis_batch_size)
             # E_list.append(E)
         synthesizer = datafree.synthesis.CuDFKDSynthesizer(
             teacher=teacher,
@@ -468,7 +474,8 @@ def main_worker(gpu, ngpus_per_node, args):
             adv_type=args.adv_type,
             bn=args.bn,
             T=args.T,
-            memory=args.memory
+            memory=args.memory,
+            distributed=args.distributed
         )
     elif args.method == 'improved_cudfkd':
         img_size = 32 if args.dataset.startswith('cifar') else 64
@@ -484,12 +491,14 @@ def main_worker(gpu, ngpus_per_node, args):
         #     criterion = torch.nn.MSELoss(reduction=reduct)
         # else:
         #     criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+
+        # print(criterion)
         if args.loss == 'l1':
-            criterion = torch.nn.L1Loss()
+           criterion = torch.nn.L1Loss()
         elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss()
+           criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T)
+           criterion = datafree.criterions.KLDiv(T=args.T)
         nz=512 if args.dataset.startswith('cifar') else 1024
         widen_factor = 1
         if args.teacher.startswith('wrn'):
@@ -529,7 +538,9 @@ def main_worker(gpu, ngpus_per_node, args):
             mu=args.mu,
             mode=args.mode,
             neg=args.neg,
-            n_neg=args.N_neg
+            n_neg=args.N_neg,
+            distributed=args.distributed,
+            k=args.length
         )
     else: raise NotImplementedError
         
@@ -651,9 +662,9 @@ def main_worker(gpu, ngpus_per_node, args):
             _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-%s-R%d.pth'%(args.method, args.dataset, args.teacher, args.student, args.log_tag, args.local_rank)
         else:
             _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-%s.pth'%(args.method, args.dataset, args.teacher, args.student, args.log_tag)
-        if epoch == 10:
-            _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-10.pth'%(args.method, args.dataset, args.teacher, args.student)
-            is_best = True
+        # if epoch == 10:
+        #     _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-10.pth'%(args.method, args.dataset, args.teacher, args.student)
+        #     is_best = True
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed
                 and args.local_rank % ngpus_per_node == 0):
             save_dict = {
@@ -701,19 +712,19 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             if args.dataset == 'cifar10':
                 alpha = 0.0001
             else:
-                alpha = 0.00002
+                alpha = 0.00005
             lamda = datafree.datasets.utils.lambda_scheduler(args.lambda_0, global_iter, alpha=alpha)
             # synthesizer.data_pool.save_buffer()
 
-        if args.method == 'pretrained' and i == 0 and save:
-            if args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'ebm' or args.pretrained_mode == 'sde':
-                vis = synthesizer.normalizer(images, reverse=True)
-            else:
-                vis = images
-            datafree.utils.save_image_batch( vis.detach(), 'checkpoints/datafree-%s/%s.png'%(args.method, args.log_tag) )
+        # if args.method == 'pretrained' and i == 0 and save:
+        #     if args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'ebm' or args.pretrained_mode == 'sde':
+        #         vis = synthesizer.normalizer(images, reverse=True)
+        #     else:
+        #         vis = images
+        #     datafree.utils.save_image_batch( vis.detach(), 'checkpoints/datafree-%s/%s.png'%(args.method, args.log_tag) )
         # print(history)
         # print(images.max(), images.min())
-        # print(images)
+        # print(images.shape)
         if l == 0 and not history:
             images = synthesizer.normalizer(images.detach())
 
@@ -724,8 +735,11 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                 t_out, t_feat = teacher(images, return_features=True)
             
             s_out, s_feat = student(images.detach(), return_features=True)
+            # print(s_out.shape, t_out.shape)
+            # print(criterion)
             
             loss_s = criterion(s_out, t_out.detach())
+            # print(loss_s.shape)
             if args.method == 'improved_cudfkd':
                 # print(t_feat, s_feat)
                 loss_t_feat, loss_infonce, s_feat = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
@@ -735,6 +749,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
 
         avg_diff = 0
         if args.curr_option != 'none':
+            # print(loss_s.shape)
             # real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
             real_loss_s = loss_s
             if args.s_nce > 0:
@@ -747,11 +762,12 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             # if global_iter == 10:
             #     print(images)
             #     exit(-1)
-            # print(real_loss_s.mean().item(), v.mean().item())
+            # if args.distributed and args.gpu == 0:
+            #     print(real_loss_s.mean().item(), v.mean().item(), loss_infonce.item())
             # exit(-1)
 
-            loss_s = (v * real_loss_s).sum() + g
-            # loss_s = (v*real_loss_s).mean()
+            # loss_s = (v * real_loss_s).sum() + g
+            loss_s = (v*real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
         if args.fp16:
