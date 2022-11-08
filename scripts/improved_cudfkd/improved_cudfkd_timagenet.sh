@@ -23,11 +23,11 @@ CUDA_VISIBLE_DEVICES=0,1 python datafree_kd.py \
 --act 0. \
 --seed 0 \
 --hard 0.0 \
---s_nce 0.00 \
+--s_nce 0.02 \
 --tau 0.07 \
 --bn 1 \
 --save_dir run/improved_cudfkd_test \
---log_tag improved_cudfkd_all_retest \
+--log_tag improved_cudfkd_exp1 \
 --data_root ~/timagenet/tiny-imagenet-200/ \
 --multiprocessing_distributed \
 --world_size 2 \

@@ -21,11 +21,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 3 \
+--gpu 4 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_wrn401_exp2_retest5 \
---log_tag infonce_wrn401_exp2_retest5 \
+--save_dir run/infonce_wrn401_exp2_retest6 \
+--log_tag infonce_wrn401_exp2_retest6 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
@@ -37,5 +37,5 @@ python datafree_kd.py \
 --neg 0.0 \
 --s_nce 0.05 \
 --log_fidelity \
---N_neg 8192 \
+--N_neg 4096 \
 --loss kl

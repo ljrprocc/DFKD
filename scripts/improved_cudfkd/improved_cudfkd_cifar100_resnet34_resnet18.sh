@@ -24,8 +24,8 @@ python datafree_kd.py \
 --gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_res_exp2_100_s_retest \
---log_tag infonce_res_exp2_100_s_retest \
+--save_dir run/infonce_res_exp1_retest1 \
+--log_tag infonce_res_exp1_retest1 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
@@ -38,5 +38,5 @@ python datafree_kd.py \
 --s_nce 0.1 \
 --log_fidelity \
 --mode memory \
---N_neg 24576 \
+--N_neg 6144 \
 --loss l1

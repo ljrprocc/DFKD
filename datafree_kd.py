@@ -485,20 +485,20 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
-        # if args.loss == 'l1':
-        #     criterion = torch.nn.L1Loss(reduction=reduct)
-        # elif args.loss == 'l2':
-        #     criterion = torch.nn.MSELoss(reduction=reduct)
-        # else:
-        #     criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+        if args.loss == 'l1':
+            criterion = torch.nn.L1Loss(reduction=reduct)
+        elif args.loss == 'l2':
+            criterion = torch.nn.MSELoss(reduction=reduct)
+        else:
+            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
 
         # print(criterion)
-        if args.loss == 'l1':
-           criterion = torch.nn.L1Loss()
-        elif args.loss == 'l2':
-           criterion = torch.nn.MSELoss()
-        else:
-           criterion = datafree.criterions.KLDiv(T=args.T)
+        # if args.loss == 'l1':
+        #    criterion = torch.nn.L1Loss()
+        # elif args.loss == 'l2':
+        #    criterion = torch.nn.MSELoss()
+        # else:
+        #    criterion = datafree.criterions.KLDiv(T=args.T)
         nz=512 if args.dataset.startswith('cifar') else 1024
         widen_factor = 1
         if args.teacher.startswith('wrn'):
@@ -712,7 +712,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             if args.dataset == 'cifar10':
                 alpha = 0.0001
             else:
-                alpha = 0.00005
+                alpha = 0.00002
             lamda = datafree.datasets.utils.lambda_scheduler(args.lambda_0, global_iter, alpha=alpha)
             # synthesizer.data_pool.save_buffer()
 
@@ -750,8 +750,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         avg_diff = 0
         if args.curr_option != 'none':
             # print(loss_s.shape)
-            # real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
-            real_loss_s = loss_s
+            real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            # real_loss_s = loss_s
             if args.s_nce > 0:
                 real_loss_s += loss_infonce * args.s_nce
             
