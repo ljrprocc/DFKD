@@ -1,5 +1,5 @@
 python datafree_kd.py \
---method improved_cudfkd \
+--method adadfkd \
 --dataset cifar100 \
 --batch_size 1024 \
 --teacher wrn40_2 \

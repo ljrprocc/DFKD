@@ -32,7 +32,7 @@ from datafree.utils import difficulty_mining
 parser = argparse.ArgumentParser(description='Data-free Knowledge Distillation')
 
 # Data Free
-parser.add_argument('--method', required=True, choices=['zskt', 'dfad', 'dafl', 'deepinv', 'dfq', 'cmi', 'zskd', 'dfme', 'softtarget', 'cudfkd', 'pretrained', 'improved_cudfkd', "fast_meta"])
+parser.add_argument('--method', required=True, choices=['zskt', 'dfad', 'dafl', 'deepinv', 'dfq', 'cmi', 'zskd', 'dfme', 'softtarget', 'cudfkd', 'pretrained', 'adadfkd', "fast_meta"])
 parser.add_argument('--adv', default=0, type=float, help='scaling factor for adversarial distillation')
 parser.add_argument('--adv_type',choices=['js', 'kl'], default='js', help='Adversirial training for which divergence.')
 parser.add_argument('--cond', action="store_true", help='using class-conditional generation strategy.')
@@ -497,7 +497,7 @@ def main_worker(gpu, ngpus_per_node, args):
             memory=args.memory,
             distributed=args.distributed
         )
-    elif args.method == 'improved_cudfkd':
+    elif args.method == 'adadfkd':
         img_size = 32 if args.dataset.startswith('cifar') else 64
 
         if args.curr_option == 'none':
@@ -523,7 +523,7 @@ def main_worker(gpu, ngpus_per_node, args):
         tg = prepare_model(tg)
         # G_list.append(tg)
             # E_list.append(E)
-        synthesizer = datafree.synthesis.MHDFKDSynthesizer(
+        synthesizer = datafree.synthesis.AdaSynthesizer(
             teacher=teacher,
             student=student,
             G_list=[tg],
@@ -623,7 +623,7 @@ def main_worker(gpu, ngpus_per_node, args):
             # 1. Data synthesis
             vis_result = None
             for l in range(L):
-                if args.method != 'improved_cudfkd':
+                if args.method != 'adadfkd':
                     vis_result = synthesizer.synthesize() # g_steps
                 else:
                     warmup = epoch < int(args.begin_fraction * args.epochs)
@@ -636,7 +636,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 if args.log_fidelity:
                     global_iter, avg_diff = global_iter
 
-        if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
+        if args.method == 'cudfkd' or args.method == 'adadfkd':
             synthesizer.adv = datafree.utils.get_alpha_adv(epoch, args, args.adv, type='linear')
             
         
@@ -708,14 +708,14 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         loss_s = 0.0
         if args.method == 'cudfkd':
             images = synthesizer.sample(l)
-        elif args.method == 'improved_cudfkd':
+        elif args.method == 'adadfkd':
             images = synthesizer.sample(l, warmup=warmup)
         else:
             images = synthesizer.sample()
 
         # print(images.mean().item())
         
-        if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
+        if args.method == 'cudfkd' or args.method == 'adadfkd':
             if args.dataset == 'cifar10':
                 alpha = 0.0001
             else:
@@ -734,7 +734,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             s_out, s_feat = student(images.detach(), return_features=True)
             
             loss_s = criterion(s_out, t_out.detach())
-            if args.method == 'improved_cudfkd':
+            if args.method == 'adadfkd':
                 loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
 
         avg_diff = 0

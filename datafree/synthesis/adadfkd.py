@@ -23,9 +23,9 @@ def reset_model(model):
             nn.init.constant_(m.bias, 0)
 
 
-class MHDFKDSynthesizer(BaseSynthesis):
-    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/improved_cudfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, k=1., mode='memory', neg=0.1, debug=False, n_neg=6144):
-        super(MHDFKDSynthesizer, self).__init__(teacher, student)
+class AdaSynthesizer(BaseSynthesis):
+    def __init__(self, teacher, student, G_list, num_classes, img_size, nz, iterations=100, lr_g=0.1, synthesis_batch_size=128, sample_batch_size=128, save_dir='run/adadfkd', transform=None, normalizer=None, device='cpu', use_fp16=False, distributed=False, lmda_ent=0.5, adv=0.10, oh=0, act=0, l1=0.01, depth=2, adv_type='js', bn=0, T=5, memory=False, evaluator=None, tau=10, hard=1.0, mu=0.5, k=1., mode='memory', neg=0.1, debug=False, n_neg=6144):
+        super(AdaSynthesizer, self).__init__(teacher, student)
         self.save_dir = save_dir
         self.img_size = img_size 
         self.iterations = iterations

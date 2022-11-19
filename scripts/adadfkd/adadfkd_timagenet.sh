@@ -1,5 +1,5 @@
 CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
---method improved_cudfkd \
+--method adadfkd \
 --dataset tiny_imagenet \
 --batch_size 1024 \
 --teacher resnet34 \
@@ -27,8 +27,8 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --length 0.9 \
 --tau 0.07 \
 --bn 1 \
---save_dir run/improved_cudfkd_test \
---log_tag improved_cudfkd_exp2 \
+--save_dir run/adadfkd_test \
+--log_tag adadfkd_exp2 \
 --data_root ~/timagenet/tiny-imagenet-200/ \
 --multiprocessing_distributed \
 --world_size 2 \

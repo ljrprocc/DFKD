@@ -9,13 +9,13 @@ pip install -r requirements.txt
 ```
 
 ## Our method
-Based on curriculum learning and self-paced learning. Our method is called **CuDFKD**. The result can be rephrased by scripts `scripts/cudfkd/`. For example, when distill ResNet18 from ResNet34 at the benchmark CIFAR10, please run the following script
+Based on curriculum learning and self-paced learning. Our method is called **CuDFKD**. The result can be rephrased by scripts `scripts/adadfkd/`. For example, when distill ResNet18 from ResNet34 at the benchmark CIFAR10, please run the following script
 
 ```
-bash scripts/cudfkd/cudfkd_cifar10_resnet34_resnet18.sh
+bash scripts/adadfkd/adadfkd_cifar10_resnet34_resnet18.sh
 ```
 
-The implementation is in `datafree/synthesis/cudfkd.py`.
+The implementation is in `datafree/synthesis/adadfkd.py`.
 
 ## Result on CIFAR10
 | Teacher    | Res34 | vgg11 | wrn-402 | wrn-402 | wrn-402 |
@@ -60,3 +60,4 @@ Please refer to the supplementary material pdf.
 * DFQ: [Data-Free Network Quantization With Adversarial Knowledge Distillation](https://arxiv.org/abs/2005.04136)
 * CMI: [Contrastive Model Inversion for Data-Free Knowledge Distillation](https://arxiv.org/abs/2105.08584)
 * CuDFKD: [Learning Data-Free Knowledge Distillation from Curriculum](https://arxiv.org/abs/2208.13648)
+* Fast10: [Up to 100x Faster Data-free Knowledge Distillation](https://arxiv.org/pdf/2112.06253.pdf)

@@ -7,6 +7,6 @@ from .dfme import DFMESynthesizer
 from .softtarget import SoftTargetSynthesizer
 from .cudfkd import CuDFKDSynthesizer
 from .pretrained_G import PretrainedGenerativeSynthesizer
-from .improved_cudfkd import MHDFKDSynthesizer
+from .adadfkd import AdaSynthesizer
 from .fast import FastSynthesizer
 from .fast_meta import FastMetaSynthesizer
