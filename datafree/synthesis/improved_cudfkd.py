@@ -32,13 +32,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.lr_g = lr_g
         self.normalizer = normalizer
         self.evaluator = evaluator
-        # self.strategy = strategy
-        # Avoid duplicated saving.
-        # if os.path.exists(self.save_dir):
-        #     shutil.rmtree(self.save_dir)
-        # self.data_pool = ImagePool(root=self.save_dir, save=False)
         self.data_pool = FeaturePool(root=self.save_dir)
-        # print('********')
         self.data_iter = None
         self.transform = transform
         self.synthesis_batch_size = synthesis_batch_size
@@ -47,7 +41,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.device = device
         self.num_classes = num_classes
         self.G_list = G_list
-        # self.E_list = E_list
         self.adv_type = adv_type
         self.lmda_ent = lmda_ent
         self.adv = adv
@@ -57,7 +50,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.bn = bn
         self.k = k
         self.distributed = distributed
-        # self.neg_bank = Queue(capacity=100)
         if distributed:
             mod = self.teacher.module
         else:
@@ -76,7 +68,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.act = act
         self.T = T
         self.memory = memory
-        # self._get_teacher_bn()
         self.optimizers = []
         self.tau = tau
         self.hard = hard
@@ -86,10 +77,6 @@ class MHDFKDSynthesizer(BaseSynthesis):
         self.neg = neg
         self.debug = debug
         
-        # if not os.path.exists(os.path.join(self.save_dir, 'buffer.pt')):
-        #     self.anchor_bank = torch.randn(bank_size, synthesis_batch_size, module.in_features)
-        # else:
-        #     self.anchor_bank = torch.load(os.path.join(self.save_dir, 'buffer.pt'))
         for i, G in enumerate(self.G_list):
             reset_model(G)
             optimizer = torch.optim.Adam(G.parameters(), self.lr_g, betas=[0.9, 0.99])
@@ -134,7 +121,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
 
         for i in range(self.iterations[l]):
             z = torch.randn(self.synthesis_batch_size, self.nz).to(self.device)
-            # print(z)
+            # print(z.mean().item())
             G.train()
             self.optimizers[l].zero_grad()            
             mu_theta = G(z, l=l)
@@ -179,6 +166,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
                     best_cost = loss.item()
                     best_inputs = mu_theta
                     
+            # print(t_out.mean().item(), s_out.mean().item())
             loss.backward()
             self.optimizers[l].step()
 
@@ -187,7 +175,7 @@ class MHDFKDSynthesizer(BaseSynthesis):
         #     self.update_loader(best_inputs=best_inputs)
         
         # self.student.train()
-        # print(best_inputs)
+        # print(best_inputs.mean().item())
         return {'synthetic': best_inputs}
 
     @torch.no_grad()

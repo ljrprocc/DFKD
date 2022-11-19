@@ -141,4 +141,9 @@ notebooks/prob_loyalty_distribution/
 notebooks/heatmaps/
 notebooks/curr_strategy/
 notebooks/grad_adv/
+notebooks/*.jpg
+notebooks/Neg/
+notebooks/k/
+notebooks/noisy/
+notebooks/*.csv
 notebooks/T

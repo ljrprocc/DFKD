@@ -1,7 +1,6 @@
-# DataFree Knowledge Distillation By Curriculum Learning
-
-Forked by a benchmark of data-free knowledge distillation from paper "How to Teach: Learning Data-Free Knowledge Distillation From Curriculum".
-Forked by [CMI](https://arxiv.org/abs/2105.08584).
+# Adaptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modeling
+Forked by a benchmark of data-free knowledge distillation from paper "daptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modelin".
+Forked by [CMI](https://arxiv.org/abs/2105.08584) and [CuDFKD](https://arxiv.org/abs/2208.13648).
 
 ## Installation
 We use Pytorch for implementation. Please install the following requirement packages
@@ -28,21 +27,11 @@ The implementation is in `datafree/synthesis/cudfkd.py`.
 | ZSKT       | 93.32 | 89.46 | 86.07   | 89.66   | 83.74   |
 | ADI        | 93.26 | 90.36 | 86.85   | 89.72   | 83.01   |
 | DFQ        | 94.61 | 90.84 | 91.69   | 92.01   | 86.14   |
-| CMI        | 94.84 | 91.13 | 92.78   | 92.52   | **90.01**   |
-| PRE-DFKD   | 94.10 | N\A   | N\A     | N\A     | N\A     |
-| CuDFKD     | **95.28** | **91.61** | **93.18**   | **92.98**   | 88.77   |
+| CMI        | 94.84 | 91.13 | 92.78   | 92.52   | 90.01  |
+| CuDFKD     | **95.28** | 91.61 | 93.18   | 92.98   | 88.77   |
+| AdaDFKD(G) | 95.01 | **92.19** | **93.38** | **93.15** | **90.05** |
 
-GPU and time usage when using a simple NVIDIA 3090 TI with batch size 256.
 
-|          | $\mu$ | $\sigma^2$ | best | Memory  | Time  |
-|----------|-------|------------|------|-------|-------|
-| DAFL     | 62.6  | 17.1       | 92.0 | **6.45G** | 6.10h |
-| DFAD     | 86.1  | 12.3       | 93.3 | -     | -     |
-| ADI      | 87.2  | 13.9       | 93.3 | 7.85G | 25.2h |
-| CMI      | 82.4  | 16.6       | 94.8 | 12.5G | 13.3h |
-| MB-DFKD  | 83.3  | 16.4       | 92.4 | -     | -     |
-| PRE-DFKD | 87.4  | 10.3       | 94.1 | -     | -     |
-| CuDFKD   | **94.1**  | **2.88**       | **95.0** | 6.84G | **5.48h** |
 
 ## Result on CIFAR100
 
@@ -55,19 +44,9 @@ GPU and time usage when using a simple NVIDIA 3090 TI with batch size 256.
 | ZSKT       | 67.74 | 34.72 | 29.73   | 28.44   |
 | ADI        | 61.32 | 54.13 | 61.33   | 61.34   |
 | DFQ        | 77.01 | 68.32 | 61.92   | 59.01   |
-| CMI        | 77.02 | 70.56 | **68.88**   | **68.57**   |
-| PRE-DFKD   | **77.04** | N\A   | N\A     | N\A     |
+| CMI        | **77.02** | 70.56 | **66.89**   | 65.11   |
 | CuDFKD     | 75.87 | **71.22** | 66.43   | 65.94   |
-
-|          | $\mu$ | $\sigma^2$ | best | Mem   | Time  |
-|----------|-------|------------|------|-------|-------|
-| DAFL     | 52.5  | 12.8       | 74.5 | **6.45G** | **7.09h** |
-| DFAD     | 54.9  | 12.9       | 67.7 | -     | -     |
-| ADI      | 51.3  | 18.2       | 61.3 | 7.85G | 30.4h |
-| CMI      | 55.2  | 24.1       | 77.0 | 12.5G | 22.3h |
-| MB-DFKD  | 64.4  | 18.3       | 75.4 | -     | -     |
-| PRE-DFKD | 70.2  | 11.1       | **77.1** | -     | -     |
-| CuDFKD   | **71.7**  | **4.37**       | 75.9 | 6.84G | 7.50h |
+| AdaDFKD(G)    | 75.61 | 71.09    | 66.70    | **66.22** |
 
 
 ## Other visualization results
@@ -80,3 +59,4 @@ Please refer to the supplementary material pdf.
 * DeepInv: [Dreaming to Distill: Data-free Knowledge Transfer via DeepInversion](https://arxiv.org/abs/1912.08795)
 * DFQ: [Data-Free Network Quantization With Adversarial Knowledge Distillation](https://arxiv.org/abs/2005.04136)
 * CMI: [Contrastive Model Inversion for Data-Free Knowledge Distillation](https://arxiv.org/abs/2105.08584)
+* CuDFKD: [Learning Data-Free Knowledge Distillation from Curriculum](https://arxiv.org/abs/2208.13648)

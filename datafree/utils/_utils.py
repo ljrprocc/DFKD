@@ -622,7 +622,7 @@ def difficulty_mining(t_feat, s_feat, hard_factor=0., tau=0.07, device='cpu'):
     # Maximize MI between teacher and student
     label = torch.arange(len(t_feat), dtype=torch.long, device=device)
     loss_infonce = F.cross_entropy(d / tau, label, reduction='mean')
-    return loss_s_t, loss_infonce, s_feat
+    return loss_s_t, loss_infonce
 
 
 
@@ -630,7 +630,7 @@ class MoCo(nn.Module):
     """
     Build a MoCo model with: a query encoder, a key encoder, and a queue
     https://arxiv.org/abs/1911.05722
-    Here use framework of MoCo, does not including mementum updating.
+    Here use framework of MoCo, does not including mementum updating and encoding.
     """
     def __init__(self, dim=128, K=65536, T=0.07, device='cpu', distributed=False):
         """
@@ -647,18 +647,7 @@ class MoCo(nn.Module):
         self.distributed = distributed
 
         # create the encoders
-        # num_classes is the output fc dimension
-        # self.encoder_q = base_encoder(num_classes=dim)
-        # self.encoder_k = base_encoder(num_classes=dim)
-
-        # if mlp:  # hack: brute-force replacement
-        #     dim_mlp = self.encoder_q.fc.weight.shape[1]
-        #     self.encoder_q.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.encoder_q.fc)
-        #     self.encoder_k.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), self.encoder_k.fc)
-
-        # for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
-        #     param_k.data.copy_(param_q.data)  # initialize
-        #     param_k.requires_grad = False  # not update by gradient
+        # Not implemented in AdaDFKD, because the encoder is the teacher and student mode themselves.
 
         # create the queue
         self.register_buffer("queue", torch.randn(dim, K))
@@ -772,7 +761,6 @@ class MoCo(nn.Module):
         # positive logits: Nx1
         l_pos = torch.einsum('nc,nc->n', [q, k]).unsqueeze(-1)
         # negative logits: NxK
-        # print(q.device, self.queue.device)
         l_neg = torch.einsum('nc,ck->nk', [q, self.queue.clone().detach().to(self.device)])
 
         # Difficulty curriculum adjusting, Motivated by MocoRING

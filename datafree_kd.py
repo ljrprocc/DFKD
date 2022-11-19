@@ -32,7 +32,7 @@ from datafree.utils import difficulty_mining
 parser = argparse.ArgumentParser(description='Data-free Knowledge Distillation')
 
 # Data Free
-parser.add_argument('--method', required=True, choices=['zskt', 'dfad', 'dafl', 'deepinv', 'dfq', 'cmi', 'zskd', 'dfme', 'softtarget', 'cudfkd', 'pretrained', 'improved_cudfkd'])
+parser.add_argument('--method', required=True, choices=['zskt', 'dfad', 'dafl', 'deepinv', 'dfq', 'cmi', 'zskd', 'dfme', 'softtarget', 'cudfkd', 'pretrained', 'improved_cudfkd', "fast_meta"])
 parser.add_argument('--adv', default=0, type=float, help='scaling factor for adversarial distillation')
 parser.add_argument('--adv_type',choices=['js', 'kl'], default='js', help='Adversirial training for which divergence.')
 parser.add_argument('--cond', action="store_true", help='using class-conditional generation strategy.')
@@ -103,6 +103,20 @@ parser.add_argument('--synthesis_batch_size', default=None, type=int,
                     help='mini-batch size (default: None) for synthesis, this is the total '
                          'batch size of all GPUs on the current node when '
                          'using Data Parallel or Distributed Data Parallel')
+
+parser.add_argument('--reset_l0', default=0, type=int,
+                    help='reset l0 in the generator during training')
+parser.add_argument('--reset_bn', default=0, type=int,
+                    help='reset bn layers during training')
+parser.add_argument('--bn_mmt', default=0, type=float,
+                    help='momentum when fitting batchnorm statistics')
+parser.add_argument('--is_maml', default=1, type=int,
+                    help='meta gradient: is maml or reptile')
+
+parser.add_argument('--lr_z', default=1e-3, type=float, help='initial learning rate for latent code')
+parser.add_argument('--warmup', default=0, type=int, metavar='N',
+                    help='which epoch to start kd')
+
 
 parser.add_argument('--log_y_kl', action="store_true", help='Flag for logging kl divergence at y space.')
 parser.add_argument('--log_fidelity', action="store_true")
@@ -403,6 +417,20 @@ def main_worker(gpu, ngpus_per_node, args):
                  save_dir=args.save_dir, transform=ori_dataset.transform,
                  normalizer=args.normalizer, device=args.gpu, a=args.act)
 
+    elif args.method=='fast_meta':
+        nz = 256
+        generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=32, nc=3)
+        generator = prepare_model(generator)
+        synthesizer = datafree.synthesis.FastMetaSynthesizer(teacher, student, generator,
+                 nz=nz, num_classes=num_classes, img_size=(3, 32, 32), init_dataset=args.cmi_init,
+                 save_dir=args.save_dir, device=args.gpu,
+                 transform=ori_dataset.transform, normalizer=args.normalizer,
+                 synthesis_batch_size=args.synthesis_batch_size, sample_batch_size=args.batch_size,
+                 iterations=args.g_steps, warmup=args.warmup, lr_g=args.lr_g, lr_z=args.lr_z,
+                 adv=args.adv, bn=args.bn, oh=args.oh,
+                 reset_l0=args.reset_l0, reset_bn=args.reset_bn,
+                 bn_mmt=args.bn_mmt, is_maml=args.is_maml)
+
     elif args.method == 'cudfkd':
         G_list = []
         # E_list = []
@@ -415,20 +443,12 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
-        # if args.loss == 'l1':
-        #     criterion = torch.nn.L1Loss(reduction=reduct)
-        # elif args.loss == 'l2':
-        #     criterion = torch.nn.MSELoss(reduction=reduct)
-        # else:
-        #     criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
         if args.loss == 'l1':
-            criterion = torch.nn.L1Loss()
+            criterion = torch.nn.L1Loss(reduction=reduct)
         elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss()
+            criterion = torch.nn.MSELoss(reduction=reduct)
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T)
-            # criterion = datafree.criterions.KLDiv(T=args.T, reduction='batchmean')
-        # t_criterion = datafree.criterions.KLDiv(T=args.T)
+            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
         if args.no_feature:
             L = 1
         else:
@@ -492,13 +512,6 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
 
-        # print(criterion)
-        # if args.loss == 'l1':
-        #    criterion = torch.nn.L1Loss()
-        # elif args.loss == 'l2':
-        #    criterion = torch.nn.MSELoss()
-        # else:
-        #    criterion = datafree.criterions.KLDiv(T=args.T)
         nz=512 if args.dataset.startswith('cifar') else 1024
         widen_factor = 1
         if args.teacher.startswith('wrn'):
@@ -602,11 +615,8 @@ def main_worker(gpu, ngpus_per_node, args):
     L = 1
 
     for epoch in range(args.start_epoch, args.epochs):
-        #if args.distributed:
-        #    train_sampler.set_epoch(epoch)
         args.current_epoch=epoch
 
-        # for _ in range( args.ep_steps//args.kd_steps ): # total kd_steps < ep_steps
         for k in range( args.ep_steps//kd_steps[0] ):
             # print(k)
             # two-stage
@@ -618,6 +628,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 else:
                     warmup = epoch < int(args.begin_fraction * args.epochs)
                     hard_factor = min(max(0, (1 - args.length) * (epoch - int(args.begin_fraction * args.epochs)) / int(args.epochs * (args.end_fraction-args.begin_fraction))), 1 - args.length)
+                    # print(hard_factor)
                     vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=warmup)
                 # 2. Knowledge distillation
                 # kd_steps
@@ -637,7 +648,6 @@ def main_worker(gpu, ngpus_per_node, args):
         student.eval()
         eval_results = evaluator(student, device=args.gpu)
         (acc1, acc5), val_loss = eval_results['Acc'], eval_results['Loss']
-        # warmup = epoch < int(args.begin_fraction * args.epochs)
         if args.method.endswith('cudfkd') and (args.memory):
             
             synthesizer.data_pool.save_buffer()
@@ -662,9 +672,6 @@ def main_worker(gpu, ngpus_per_node, args):
             _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-%s-R%d.pth'%(args.method, args.dataset, args.teacher, args.student, args.log_tag, args.local_rank)
         else:
             _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-%s.pth'%(args.method, args.dataset, args.teacher, args.student, args.log_tag)
-        # if epoch == 10:
-        #     _best_ckpt = 'checkpoints/datafree-%s/%s-%s-%s-10.pth'%(args.method, args.dataset, args.teacher, args.student)
-        #     is_best = True
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed
                 and args.local_rank % ngpus_per_node == 0):
             save_dict = {
@@ -677,8 +684,6 @@ def main_worker(gpu, ngpus_per_node, args):
             }
             if args.method.endswith('cudfkd'):
                 save_dict['G'] = tg.state_dict()
-                # for l in range(L):
-                #     save_dict['G_{}'.format(l)] = G_list[l].state_dict()
             save_checkpoint(save_dict, is_best, is_new_direct, epoch, _best_ckpt)
     if args.local_rank<=0 or args.distributed:
         logger.info("Best: %.4f"%best_acc1)
@@ -706,7 +711,9 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         elif args.method == 'improved_cudfkd':
             images = synthesizer.sample(l, warmup=warmup)
         else:
-            synthesizer.sample()
+            images = synthesizer.sample()
+
+        # print(images.mean().item())
         
         if args.method == 'cudfkd' or args.method == 'improved_cudfkd':
             if args.dataset == 'cifar10':
@@ -714,17 +721,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             else:
                 alpha = 0.00002
             lamda = datafree.datasets.utils.lambda_scheduler(args.lambda_0, global_iter, alpha=alpha)
-            # synthesizer.data_pool.save_buffer()
 
-        # if args.method == 'pretrained' and i == 0 and save:
-        #     if args.pretrained_mode == 'diffusion' or args.pretrained_mode == 'ebm' or args.pretrained_mode == 'sde':
-        #         vis = synthesizer.normalizer(images, reverse=True)
-        #     else:
-        #         vis = images
-        #     datafree.utils.save_image_batch( vis.detach(), 'checkpoints/datafree-%s/%s.png'%(args.method, args.log_tag) )
-        # print(history)
-        # print(images.max(), images.min())
-        # print(images.shape)
         if l == 0 and not history:
             images = synthesizer.normalizer(images.detach())
 
@@ -735,23 +732,14 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                 t_out, t_feat = teacher(images, return_features=True)
             
             s_out, s_feat = student(images.detach(), return_features=True)
-            # print(s_out.shape, t_out.shape)
-            # print(criterion)
             
             loss_s = criterion(s_out, t_out.detach())
-            # print(loss_s.shape)
             if args.method == 'improved_cudfkd':
-                # print(t_feat, s_feat)
-                loss_t_feat, loss_infonce, s_feat = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
-                loss_infonce = synthesizer.neg_bank(t_feat, s_feat, hard_factor=0., length=1)
-                # print(loss_t_feat, loss_infonce)
-                # loss_s += loss_infonce * 1.0
+                loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
 
         avg_diff = 0
         if args.curr_option != 'none':
-            # print(loss_s.shape)
             real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
-            # real_loss_s = loss_s
             if args.s_nce > 0:
                 real_loss_s += loss_infonce * args.s_nce
             
@@ -759,14 +747,6 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                 with torch.no_grad():
                     g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
-            # if global_iter == 10:
-            #     print(images)
-            #     exit(-1)
-            # if args.distributed and args.gpu == 0:
-            #     print(real_loss_s.mean().item(), v.mean().item(), loss_infonce.item())
-            # exit(-1)
-
-            # loss_s = (v * real_loss_s).sum() + g
             loss_s = (v*real_loss_s).mean()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
