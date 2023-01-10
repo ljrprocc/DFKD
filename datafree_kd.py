@@ -200,6 +200,7 @@ def main():
     args.distributed = args.world_size > 1 or args.multiprocessing_distributed
 
     args.ngpus_per_node = ngpus_per_node = torch.cuda.device_count()
+    print(ngpus_per_node)
     if args.multiprocessing_distributed:
         # Since we have ngpus_per_node processes per node, the total world_size
         # needs to be adjusted accordingly
@@ -337,8 +338,8 @@ def main_worker(gpu, ngpus_per_node, args):
     # if args.gpu == 0:
     #     print(ckpt['state_dict'].keys())
     # exit(-1)
-    if args.distributed:
-        ckpt = {'.'.join(k.split('.')[1:]):v for k,v in ckpt.items()}
+    # if args.distributed:
+    #     ckpt = {'.'.join(k.split('.')[1:]):v for k,v in ckpt.items()}
 
     teacher.load_state_dict(ckpt)
     student = prepare_model(student)
@@ -349,6 +350,21 @@ def main_worker(gpu, ngpus_per_node, args):
     g_steps = args.g_steps_interval.split(',')
     g_step = [int(x) for x in g_steps]
     g_steps = g_step[0]
+    if args.dataset.startswith('cifar'):
+        img_size = 32
+    elif args.dataset == 'tiny_imagenet':
+        img_size = 64
+    elif args.dataset == 'imagenet':
+        img_size = 224
+    else:
+        raise ValueError('No such dataset as {}'.format(args.dataset))
+    
+    widen_factor = 1
+    if args.teacher.startswith('wrn'):
+        type = 'wider'
+        widen_factor = int(args.teacher.split('_')[-1])
+    else:
+        type = 'normal'
     # print(args.batch_size)
     
     ############################################
@@ -360,31 +376,36 @@ def main_worker(gpu, ngpus_per_node, args):
     if args.method=='deepinv':
         synthesizer = datafree.synthesis.DeepInvSyntheiszer(
                  teacher=teacher, student=student, num_classes=num_classes, 
-                 img_size=(3, 32, 32), iterations=args.g_steps, lr_g=args.lr_g,
+                 img_size=(3, img_size, img_size), iterations=args.g_steps, lr_g=args.lr_g,
                  synthesis_batch_size=args.synthesis_batch_size, sample_batch_size=args.batch_size, 
                  adv=args.adv, bn=args.bn, oh=args.oh, tv=0.001, l2=0.0,
                  save_dir=args.save_dir, transform=ori_dataset.transform,
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method in ['zskt', 'dfad', 'dfq', 'dafl']:
         nz = 512 if args.method=='dafl' else 256
+        if args.dataset == 'imagenet':
+            nz = 1024
         generator = datafree.models.generator.LargeGenerator(nz=nz, ngf=64, img_size=32, nc=3)
+        # generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
+        if args.dataset == 'imagenet':
+            generator = datafree.models.stylegan_network.Generator()
         generator = prepare_model(generator)
         criterion = torch.nn.L1Loss() if args.method=='dfad' else datafree.criterions.KLDiv()
         synthesizer = datafree.synthesis.GenerativeSynthesizer(
                  teacher=teacher, student=student, generator=generator, nz=nz, 
-                 img_size=(3, 32, 32), iterations=args.g_steps, lr_g=args.lr_g,
+                 img_size=(3, img_size, img_size), iterations=args.g_steps, lr_g=args.lr_g,
                  synthesis_batch_size=args.synthesis_batch_size, sample_batch_size=args.batch_size, 
                  adv=args.adv, bn=args.bn, oh=args.oh, act=args.act, balance=args.balance, criterion=criterion,
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method=='cmi':
         nz = 256
-        generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=32, nc=3)
+        generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
         generator = prepare_model(generator)
         feature_layers = None # use all conv layers
         if args.teacher=='resnet34': # only use blocks
             feature_layers = [teacher.layer1, teacher.layer2, teacher.layer3, teacher.layer4]
         synthesizer = datafree.synthesis.CMISynthesizer(teacher, student, generator, 
-                 nz=nz, num_classes=num_classes, img_size=(3, 32, 32), 
+                 nz=nz, num_classes=num_classes, img_size=(3, img_size, img_size), 
                  # if feature layers==None, all convolutional layers will be used by CMI.
                  feature_layers=feature_layers, bank_size=40960, n_neg=4096, head_dim=256, init_dataset=args.cmi_init,
                  iterations=args.g_steps[0], lr_g=args.lr_g, progressive_scale=False,
@@ -436,8 +457,9 @@ def main_worker(gpu, ngpus_per_node, args):
         # E_list = []
         # L = teacher.num_blocks
         # for debug
+
         
-        img_size = 32 if args.dataset.startswith('cifar') else 64
+        # img_size = 32 if args.dataset.startswith('cifar') else 64
         if args.curr_option == 'none':
             reduct = 'batchmean'
         else:
@@ -449,6 +471,12 @@ def main_worker(gpu, ngpus_per_node, args):
             criterion = torch.nn.MSELoss(reduction=reduct)
         else:
             criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+        # if args.loss == 'l1':
+        #     criterion = torch.nn.L1Loss()
+        #elif args.loss == 'l2':
+        #    criterion = torch.nn.MSELoss()
+        #else:
+        #    criterion = datafree.criterions.KLDiv()
         if args.no_feature:
             L = 1
         else:
@@ -461,12 +489,7 @@ def main_worker(gpu, ngpus_per_node, args):
         assert args.no_feature or len(kd_steps) == L, 'error'
         for l in range(L):
             nz=512 if args.dataset.startswith('cifar') else 1024
-            widen_factor = 1
-            if args.teacher.startswith('wrn'):
-                type = 'wider'
-                widen_factor = int(args.teacher.split('_')[-1])
-            else:
-                type = 'normal'
+            
             tg = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
             tg = prepare_model(tg)
             G_list.append(tg)
@@ -498,7 +521,6 @@ def main_worker(gpu, ngpus_per_node, args):
             distributed=args.distributed
         )
     elif args.method == 'adadfkd':
-        img_size = 32 if args.dataset.startswith('cifar') else 64
 
         if args.curr_option == 'none':
             reduct = 'batchmean'
@@ -513,12 +535,7 @@ def main_worker(gpu, ngpus_per_node, args):
             criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
 
         nz=512 if args.dataset.startswith('cifar') else 1024
-        widen_factor = 1
-        if args.teacher.startswith('wrn'):
-            type = 'wider'
-            widen_factor = int(args.teacher.split('_')[-1])
-        else:
-            type = 'normal'
+        
         tg = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
         tg = prepare_model(tg)
         # G_list.append(tg)
@@ -682,7 +699,7 @@ def main_worker(gpu, ngpus_per_node, args):
                 'optimizer' : optimizer.state_dict(),
                 'scheduler': scheduler.state_dict(),
             }
-            if args.method.endswith('cudfkd'):
+            if args.method == 'cudfkd' or args.method == 'adadfkd':
                 save_dict['G'] = tg.state_dict()
             save_checkpoint(save_dict, is_best, is_new_direct, epoch, _best_ckpt)
     if args.local_rank<=0 or args.distributed:
@@ -740,6 +757,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         avg_diff = 0
         if args.curr_option != 'none':
             real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            # real_loss_s = loss_s
             if args.s_nce > 0:
                 real_loss_s += loss_infonce * args.s_nce
             

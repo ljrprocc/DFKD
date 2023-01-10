@@ -143,15 +143,15 @@ class DCGAN_Generator_CIFAR10(nn.Module):
             self.emb = nn.Embedding(10, n_emb)
         else:
             n_emb = 0
-        assert d in [2, 3]
+        assert d in [2, 3, 5]
         assert type in ['normal', 'tiny', 'wider']
-        if type == 'normal':
-            base = [64, 128, 256, 512]
-        elif type == 'tiny':
-            base = [16, 16, 32, 64]
-        elif type == 'wider':
-            # Only support wrn40_2 as teacher.
-            base = [16*widen_factor, 32*widen_factor, 64*widen_factor]
+        # if type == 'normal':
+        #     base = [64, 128, 256, 512]
+        # elif type == 'tiny':
+        #     base = [16, 16, 32, 64]
+        # elif type == 'wider':
+        #     # Only support wrn40_2 as teacher.
+        #     base = [16*widen_factor, 32*widen_factor, 64*widen_factor]
         if isinstance(img_size, (list, tuple)):
             self.init_size = ( img_size[0]//depth_factor, img_size[1]//depth_factor )
         else:    

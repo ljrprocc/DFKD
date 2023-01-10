@@ -1,8 +1,8 @@
 python datafree_kd.py \
 --method adadfkd \
 --dataset cifar100 \
---batch_size 1024 \
---teacher vgg11 \
+--batch_size 768 \
+--teacher resnet34 \
 --student resnet18 \
 --lr 0.1 \
 --epochs 300 \
@@ -21,18 +21,18 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 0 \
+--gpu 4 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_vgg_exp3_test2 \
---log_tag infonce_vgg_exp3_test2 \
+--save_dir run/infonce_res_exp3_retest6_other_test \
+--log_tag infonce_res_exp3_retest6_other_test \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1.2 \
 --hard 0.1 \
---length 0.8 \
+--length 0.7 \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \

@@ -4,20 +4,21 @@ python datafree_kd.py \
 --batch_size 768 \
 --teacher resnet34 \
 --student resnet18 \
---lr 0.05 \
---epochs 200 \
+--lr 0.1 \
+--epochs 300 \
 --kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 1e-3 \
 --adv 1 \
---T 1 \
+--T 5 \
 --bn 1 \
 --oh 1 \
 --act 0 \
 --balance 20 \
---gpu 0 \
+--gpu 4 \
 --seed 0 \
 --data_root /data/lijingru/cifar100 \
---log_tag dfq_test_line2
+--log_tag dfq_retest_line3 \
+--log_fidelity \
 --curr_option none 

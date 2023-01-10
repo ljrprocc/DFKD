@@ -1,0 +1,28 @@
+CUDA_VISIBLE_DEVICES=0,1,4,5 python datafree_kd.py \
+--method dfq \
+--dataset imagenet \
+--batch_size 1024 \
+--teacher resnet34 \
+--student resnet18 \
+--lr 0.1 \
+--epochs 2000 \
+--kd_steps 20 \
+--ep_steps 2000 \
+--g_steps 1 \
+--lr_g 1e-3 \
+--adv 1 \
+--T 10 \
+--bn 1 \
+--oh 1 \
+--act 0 \
+--depth 5 \
+--balance 20 \
+--gpu 0 \
+--seed 0 \
+--data_root /data1/lijingru/ILSVRC2012_imgs/ \
+--multiprocessing_distributed \
+--world_size 4 \
+--rank 0 \
+--log_tag dfq_imagenet_1 \
+--loss kl \
+--curr_option none 
