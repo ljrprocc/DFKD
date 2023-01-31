@@ -1,14 +1,14 @@
 python datafree_kd.py \
 --method cmi \
---dataset cifar10 \
+--dataset cifar100 \
 --batch_size 256 \
 --teacher resnet34 \
 --student resnet18 \
---epochs 250 \
+--epochs 400 \
 --lr 0.1 \
---kd_steps_interval 400 \
+--kd_steps 400 \
 --ep_steps 400 \
---g_steps_interval 200 \
+--g_steps 200 \
 --lr_g 1e-3 \
 --adv 0.5 \
 --bn 1.0 \
@@ -17,9 +17,10 @@ python datafree_kd.py \
 --cr_T 0.2 \
 --act 0 \
 --balance 0 \
---gpu 1 \
+--gpu 4 \
 --seed 0 \
 --T 20 \
---save_dir run/cmi \
---data_root /data/lijingru/cifar10 \
+--save_dir run/cmi_100_2 \
+--data_root /data/lijingru/cifar100 \
+--log_fidelity \
 --log_tag cmi

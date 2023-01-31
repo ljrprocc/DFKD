@@ -5,7 +5,7 @@ python datafree_kd.py \
 --teacher resnet34 \
 --student resnet18 \
 --lr 0.1 \
---epochs 300 \
+--epochs 400 \
 --kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \
@@ -16,9 +16,9 @@ python datafree_kd.py \
 --oh 1 \
 --act 0 \
 --balance 20 \
---gpu 4 \
+--gpu 0 \
 --seed 0 \
 --data_root /data/lijingru/cifar100 \
---log_tag dfq_retest_line3 \
+--log_tag dfq_retest_line4 \
 --log_fidelity \
 --curr_option none 

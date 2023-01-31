@@ -408,7 +408,7 @@ def main_worker(gpu, ngpus_per_node, args):
                  nz=nz, num_classes=num_classes, img_size=(3, img_size, img_size), 
                  # if feature layers==None, all convolutional layers will be used by CMI.
                  feature_layers=feature_layers, bank_size=40960, n_neg=4096, head_dim=256, init_dataset=args.cmi_init,
-                 iterations=args.g_steps[0], lr_g=args.lr_g, progressive_scale=False,
+                 iterations=args.g_steps, lr_g=args.lr_g, progressive_scale=False,
                  synthesis_batch_size=args.synthesis_batch_size, sample_batch_size=args.batch_size, 
                  adv=args.adv, bn=args.bn, oh=args.oh, cr=args.cr, cr_T=args.cr_T,
                  save_dir=args.save_dir, transform=ori_dataset.transform,
@@ -527,12 +527,19 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
+        #if args.loss == 'l1':
+         #   criterion = torch.nn.L1Loss(reduction=reduct)
+        #elif args.loss == 'l2':
+        #    criterion = torch.nn.MSELoss(reduction=reduct)
+        #else:
+        #    criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+        
         if args.loss == 'l1':
-            criterion = torch.nn.L1Loss(reduction=reduct)
+            criterion = torch.nn.L1Loss()
         elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss(reduction=reduct)
+            criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+            criterion = datafree.criterions.KLDiv(T=args.T)
 
         nz=512 if args.dataset.startswith('cifar') else 1024
         
@@ -756,8 +763,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
 
         avg_diff = 0
         if args.curr_option != 'none':
-            real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
-            # real_loss_s = loss_s
+            #real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            real_loss_s = loss_s
             if args.s_nce > 0:
                 real_loss_s += loss_infonce * args.s_nce
             

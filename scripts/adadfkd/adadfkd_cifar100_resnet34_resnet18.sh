@@ -5,7 +5,7 @@ python datafree_kd.py \
 --teacher resnet34 \
 --student resnet18 \
 --lr 0.1 \
---epochs 300 \
+--epochs 500 \
 --kd_steps 5 \
 --kd_steps_interval 10 \
 --g_steps_interval 1 \
@@ -24,19 +24,19 @@ python datafree_kd.py \
 --gpu 4 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_res_exp3_retest6_other_test \
---log_tag infonce_res_exp3_retest6_other_test \
+--save_dir run/infonce_res_exp5_retest2 \
+--log_tag infonce_res_exp5_retest2 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1.2 \
 --hard 0.1 \
---length 0.7 \
+--length 0.75 \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \
 --log_fidelity \
 --mode memory \
---N_neg 12288 \
+--N_neg 24576 \
 --loss l1
