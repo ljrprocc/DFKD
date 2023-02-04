@@ -22,17 +22,17 @@ python datafree_kd.py \
 --oh 1 \
 --act 0. \
 --gpu 2 \
---seed 40 \
+--seed 50 \
 --bn 1 \
---save_dir run/infonce_wrn162_k_3_retest8 \
---log_tag infonce_wrn162_k_3_retest8 \
+--save_dir run/infonce_wrn162_l_3_retest3 \
+--log_tag infonce_wrn162_l_3_retest3 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1.2 \
---hard 0.1 \
---length 0.95 \
+--hard 0.2 \
+--length 0.8 \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \

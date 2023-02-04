@@ -15,6 +15,7 @@ import torch.nn as nn
 import numpy as np
 from PIL import Image
 import tqdm
+from torch.utils.data import Dataset
 
 NORMALIZE_DICT = {
     'mnist':    dict( mean=(0.1307,),                std=(0.3081,) ),
@@ -77,6 +78,23 @@ SEGMENTATION_MODEL_DICT = {
     'deeplabv3_mobilenet': deeplab.deeplabv3_mobilenet,
 }
 
+class NoisyCIFAR10(datasets.CIFAR10):
+    def __init__(self, noisy_ratio=0.01, **kwargs):
+        super(NoisyCIFAR10, self).__init__(**kwargs)
+        idx = np.arange(len(self.data))
+        self.random_idx = np.random.choice(idx, int(len(self.data) * noisy_ratio), replace=False)
+
+    def __getitem__(self, idx):
+        x, y = super().__getitem__(idx)
+        if idx in self.random_idx:
+            return x, torch.randint(10)
+        else:
+            return x, y
+
+    def __len__(self):
+        return len(self.data)
+
+
 def get_model(name: str, num_classes, pretrained=False, **kwargs):
     if 'imagenet' in name:
         model = IMAGENET_MODEL_DICT[name](pretrained=False)
@@ -89,7 +107,7 @@ def get_model(name: str, num_classes, pretrained=False, **kwargs):
     return model 
 
 
-def get_dataset(name: str, data_root: str='data', return_transform=False, split=['A', 'B', 'C', 'D'], ratio=False, teacher='resnet34', ratio_num=1., gpu=None):
+def get_dataset(name: str, data_root: str='data', return_transform=False, split=['A', 'B', 'C', 'D'], ratio=False, teacher='resnet34', ratio_num=1., gpu=None, noisy=False, noisy_ratio=0.01):
     name = name.lower()
     data_root = os.path.expanduser( data_root )
 
@@ -122,8 +140,10 @@ def get_dataset(name: str, data_root: str='data', return_transform=False, split=
             T.ToTensor(),
             T.Normalize( **NORMALIZE_DICT[name] ),
         ])
-        # data_root = os.path.join( data_root, 'torchdata' ) 
+        # data_root = os.path.join( data_root, 'torchdata' )
         train_dst = datasets.CIFAR10(data_root, train=True, download=True, transform=train_transform)
+        if noisy:
+            train_dst = NoisyCIFAR10(noisy_ratio=noisy_ratio, root=data_root, train=True, download=True, transform=train_transform)
         val_dst = datasets.CIFAR10(data_root, train=False, download=True, transform=val_transform)
     elif name=='c10+p365':
         num_classes = 10

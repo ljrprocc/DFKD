@@ -76,6 +76,8 @@ parser.add_argument('-p', '--print-freq', default=0, type=int,
                     metavar='N', help='print frequency (default: 0)')
 parser.add_argument('--seed', default=None, type=int,
                     help='seed for initializing training.')
+parser.add_argument('--nt2', action='store_true', help="train noisy teacher model type 2.")
+parser.add_argument('--noisy_ratio', type=float, default=0.01)
 
 best_acc1 = 0
 def main():
@@ -163,7 +165,9 @@ def main_worker(gpu, ngpus_per_node, args):
     ############################################
     # Setup dataset
     ############################################
-    num_classes, train_dataset, val_dataset = registry.get_dataset(name=args.dataset, data_root=args.data_root)
+    if args.noisy:
+        logger.info('Noisy teacher training, {}\% label are noisy.'.format(args.noisy_ratio * 100))
+    num_classes, train_dataset, val_dataset = registry.get_dataset(name=args.dataset, data_root=args.data_root, noisy=args.nt2, noisy_ratio=args.noisy_ratio)
     cudnn.benchmark = True
     if args.distributed:
         train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
