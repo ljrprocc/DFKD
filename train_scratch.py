@@ -42,6 +42,7 @@ parser.add_argument('--gpu', default=None, type=str,
                     help='GPU id to use.')
 parser.add_argument('--print_freq', default=0, type=int,
                     help='Print freq.')
+parser.add_argument('--log_tag', default='', type=str)
 
 # Device & FP16
 parser.add_argument('--fp16', action='store_true',
@@ -186,7 +187,7 @@ def main_worker(gpu, ngpus_per_node, args):
     ############################################
     # Setup models and datasets
     ############################################
-    if args.dataset == 'imagenet' or 'tiny_imagenet':
+    if args.dataset == 'imagenet' or args.dataset == 'tiny_imagenet':
         if args.model.startswith('resnet'):
             args.model = args.model + '_imagenet'
 
@@ -309,7 +310,7 @@ def main_worker(gpu, ngpus_per_node, args):
         if args.distributed:
             _best_ckpt = 'checkpoints/scratch/%s_%s_R%d_2.pth'%(args.dataset, args.model, args.local_rank)
         else:
-            _best_ckpt = 'checkpoints/scratch/%s_%s.pth'%(args.dataset, args.model)
+            _best_ckpt = 'checkpoints/scratch/%s_%s_%s.pth'%(args.dataset, args.model, args.log_tag)
         if args.resume:
             _best_ckpt = _best_ckpt[:-4] + '_finetune.pth'
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed
