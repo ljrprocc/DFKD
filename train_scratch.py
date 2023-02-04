@@ -165,7 +165,7 @@ def main_worker(gpu, ngpus_per_node, args):
     ############################################
     # Setup dataset
     ############################################
-    if args.noisy:
+    if args.nt2:
         logger.info('Noisy teacher training, {}\% label are noisy.'.format(args.noisy_ratio * 100))
     num_classes, train_dataset, val_dataset = registry.get_dataset(name=args.dataset, data_root=args.data_root, noisy=args.nt2, noisy_ratio=args.noisy_ratio)
     cudnn.benchmark = True
