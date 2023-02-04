@@ -15,6 +15,7 @@ import torch.nn as nn
 import numpy as np
 from PIL import Image
 import tqdm
+import random
 from torch.utils.data import Dataset
 
 NORMALIZE_DICT = {
@@ -87,7 +88,7 @@ class NoisyCIFAR10(datasets.CIFAR10):
     def __getitem__(self, idx):
         x, y = super().__getitem__(idx)
         if idx in self.random_idx:
-            return x, torch.randint(10)
+            return x, random.randint(0, 9)
         else:
             return x, y
 
