@@ -173,7 +173,7 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
 # Currcurilum Learning options
 parser.add_argument('--curr_option', type=str, default='none')
 parser.add_argument('--lambda_0', type=float, default=1.)
-parser.add_argument('--nt_mode', choices=['01', '02', '005', 'none', 'noisy'], default='none', type=str)
+parser.add_argument('--nt2_mode', choices=['01', '02', '005', 'none', 'noisy'], default='none', type=str)
 best_acc1 = 0
 best_agg1 = 0
 best_prob1 = 0
@@ -340,7 +340,7 @@ def main_worker(gpu, ngpus_per_node, args):
     else:
         folder = 'scratch'
     
-    ckpt = torch.load('checkpoints/{}/%s_%s.pth'%(folder, args.dataset, args.teacher), map_location='cpu')['state_dict']
+    ckpt = torch.load('checkpoints/%s/%s_%s.pth'%(folder, args.dataset, args.teacher), map_location='cpu')['state_dict']
     # if args.gpu == 0:
     #     print(ckpt['state_dict'].keys())
     # exit(-1)
@@ -533,19 +533,19 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
-        if args.loss == 'l1':
-            criterion = torch.nn.L1Loss(reduction=reduct)
-        elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss(reduction=reduct)
-        else:
-            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
-        
         #if args.loss == 'l1':
-        #    criterion = torch.nn.L1Loss()
+        #    criterion = torch.nn.L1Loss(reduction=reduct)
         #elif args.loss == 'l2':
-        #    criterion = torch.nn.MSELoss()
+        #    criterion = torch.nn.MSELoss(reduction=reduct)
         #else:
-        #    criterion = datafree.criterions.KLDiv(T=args.T)
+        #    criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
+        
+        if args.loss == 'l1':
+            criterion = torch.nn.L1Loss()
+        elif args.loss == 'l2':
+            criterion = torch.nn.MSELoss()
+        else:
+            criterion = datafree.criterions.KLDiv(T=args.T)
 
         nz=512 if args.dataset.startswith('cifar') else 1024
         
@@ -769,8 +769,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
 
         avg_diff = 0
         if args.curr_option != 'none':
-            real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
-            #real_loss_s = loss_s
+            #real_loss_s = loss_s.sum(1) if args.loss == 'kl' else loss_s.mean(1)
+            real_loss_s = loss_s
             if args.s_nce > 0:
                 real_loss_s += loss_infonce * args.s_nce
             
@@ -779,6 +779,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                     g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
             loss_s = (v*real_loss_s).mean()
+            #loss_s = (v*real_loss_s).sum()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()
         if args.fp16:
