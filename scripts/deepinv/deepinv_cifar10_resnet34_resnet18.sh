@@ -16,11 +16,11 @@ python datafree_kd.py \
 --T 20 \
 --act 0 \
 --balance 0 \
---gpu 3 \
---seed 20 \
---save_dir /data/lijingru/run/deepinv_mt_1_2 \
---log_tag deepinv_nt_1_2 \
+--gpu 5 \
+--seed 40 \
+--save_dir /data/lijingru/run/deepinv_mt_2_3 \
+--log_tag deepinv_nt_2_3 \
 --curr_option none \
 --log_fidelity \
---nt2_mode 01 \
+--nt2_mode 02 \
 --data_root ~/cifar10/

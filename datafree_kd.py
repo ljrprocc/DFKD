@@ -350,7 +350,7 @@ def main_worker(gpu, ngpus_per_node, args):
     teacher.load_state_dict(ckpt)
     student = prepare_model(student)
     teacher = prepare_model(teacher)
-    criterion = datafree.criterions.KLDiv(T=args.T)
+    criterion = datafree.criterions.KLDiv()
     kd_steps = args.kd_steps_interval.split(',')
     kd_steps = [int(x) for x in kd_steps]
     g_steps = args.g_steps_interval.split(',')
@@ -471,18 +471,18 @@ def main_worker(gpu, ngpus_per_node, args):
         else:
             reduct = 'none'
         
-        if args.loss == 'l1':
-            criterion = torch.nn.L1Loss(reduction=reduct)
-        elif args.loss == 'l2':
-            criterion = torch.nn.MSELoss(reduction=reduct)
-        else:
-            criterion = datafree.criterions.KLDiv(T=args.T, reduction=reduct)
-        # if args.loss == 'l1':
-        #     criterion = torch.nn.L1Loss()
+        #if args.loss == 'l1':
+        #    criterion = torch.nn.L1Loss(reduction=reduct)
         #elif args.loss == 'l2':
-        #    criterion = torch.nn.MSELoss()
+        #    criterion = torch.nn.MSELoss(reduction=reduct)
         #else:
-        #    criterion = datafree.criterions.KLDiv()
+        #    criterion = datafree.criterions.KLDiv(reduction=reduct)
+        if args.loss == 'l1':
+            criterion = torch.nn.L1Loss()
+        elif args.loss == 'l2':
+            criterion = torch.nn.MSELoss()
+        else:
+            criterion = datafree.criterions.KLDiv()
         if args.no_feature:
             L = 1
         else:
@@ -545,7 +545,7 @@ def main_worker(gpu, ngpus_per_node, args):
         elif args.loss == 'l2':
             criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv(T=args.T)
+            criterion = datafree.criterions.KLDiv()
 
         nz=512 if args.dataset.startswith('cifar') else 1024
         
@@ -743,7 +743,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         else:
             images = synthesizer.sample()
 
-        # print(images.mean().item())
+        # print(images)
+        
         
         if args.method == 'cudfkd' or args.method == 'adadfkd':
             if args.dataset == 'cifar10':
@@ -755,6 +756,8 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         if l == 0 and not history:
             images = synthesizer.normalizer(images.detach())
 
+        # print(images)
+
         if args.gpu is not None:
             images = images.cuda(args.gpu, non_blocking=True)
         with args.autocast():
@@ -764,7 +767,9 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
             s_out, s_feat = student(images.detach(), return_features=True)
             
             loss_s = criterion(s_out, t_out.detach())
-            if args.method == 'adadfkd':
+            # print(loss_s)
+            # exit(-1)
+            if args.method == 'adadfkd' and args.s_nce > 0:
                 loss_t_feat, loss_infonce = difficulty_mining(t_feat=t_feat, s_feat=s_feat, tau=args.tau, device=args.gpu)
 
         avg_diff = 0
@@ -779,6 +784,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
                     g,v = datafree.datasets.utils.curr_v(l=real_loss_s, lamda=lamda, spl_type=args.curr_option.split('_')[1])
 
             loss_s = (v*real_loss_s).mean()
+            # print(v.mean(), real_loss_s, loss_s)
             #loss_s = (v*real_loss_s).sum()
             avg_diff = (v * real_loss_s).sum() / v.sum()  
         optimizer.zero_grad()

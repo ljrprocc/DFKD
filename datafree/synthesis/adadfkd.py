@@ -62,7 +62,8 @@ class AdaSynthesizer(BaseSynthesis):
         else:
             dims = mod.classifier.in_features
         
-        self.neg_bank = MoCo(dim=dims, K=n_neg, T=tau, device=device, distributed=distributed)
+        if hard > 0:      
+            self.neg_bank = MoCo(dim=dims, K=n_neg, T=tau, device=device, distributed=distributed)
         
         self.oh = oh
         self.act = act
