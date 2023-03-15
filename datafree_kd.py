@@ -545,7 +545,7 @@ def main_worker(gpu, ngpus_per_node, args):
         elif args.loss == 'l2':
             criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv()
+            criterion = datafree.criterions.KLDiv(T=args.T)
 
         nz=512 if args.dataset.startswith('cifar') else 1024
         

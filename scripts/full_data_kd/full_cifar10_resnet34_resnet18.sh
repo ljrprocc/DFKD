@@ -1,5 +1,5 @@
 python vanilla_kd.py \
---data_root /data/lijingru/cifar10/ \
+--data_root ~/cifar10/ \
 --teacher resnet34 \
 --student resnet18 \
 --dataset cifar10 \

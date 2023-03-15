@@ -26,4 +26,4 @@ python datafree_kd.py \
 --cmi_init run/cmi-preinverted-wrn402 \
 --save_dir run/adv_cmi_cifar10 \
 --log_tag adv_cmi_cifar10 \
---data_root /data/lijingru/cifar10/
+--data_root ~/cifar10/

@@ -21,4 +21,4 @@ python datafree_kd.py \
 --log_tag dafl_interval_a2 \
 --curr_option none \
 --log_fidelity \
---data_root /data/lijingru/cifar10/
+--data_root ~/cifar10/

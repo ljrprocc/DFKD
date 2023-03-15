@@ -18,7 +18,7 @@ python datafree_kd.py \
 --balance 20 \
 --gpu 0 \
 --seed 0 \
---data_root /data/lijingru/cifar100 \
+--data_root ~/cifar100 \
 --log_tag dfq_retest_line4 \
 --log_fidelity \
 --curr_option none 

@@ -21,7 +21,7 @@ python datafree_kd.py \
 --seed 40 \
 --T 20 \
 --save_dir run/cmi_10_nt02_3 \
---data_root /data/lijingru/cifar10 \
+--data_root ~/cifar10 \
 --log_fidelity \
 --nt2_mode 02 \
 --log_tag cmi02_3

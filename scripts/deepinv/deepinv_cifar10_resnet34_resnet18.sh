@@ -18,7 +18,7 @@ python datafree_kd.py \
 --balance 0 \
 --gpu 5 \
 --seed 40 \
---save_dir /data/lijingru/run/deepinv_mt_2_3 \
+--save_dir ~/run/deepinv_mt_2_3 \
 --log_tag deepinv_nt_2_3 \
 --curr_option none \
 --log_fidelity \

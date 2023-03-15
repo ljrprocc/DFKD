@@ -19,7 +19,7 @@ CUDA_VISIBLE_DEVICES=0,1,4,5 python datafree_kd.py \
 --balance 20 \
 --gpu 0 \
 --seed 0 \
---data_root /data1/lijingru/ILSVRC2012_imgs/ \
+--data_root ~/ILSVRC2012_imgs/ \
 --multiprocessing_distributed \
 --world_size 4 \
 --rank 0 \

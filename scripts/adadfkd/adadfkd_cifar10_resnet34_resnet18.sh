@@ -24,13 +24,13 @@ python datafree_kd.py \
 --gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_retest_2_3 \
---log_tag infonce_retest_2_3 \
+--save_dir run/infonce_retest_2_4 \
+--log_tag infonce_retest_2_4 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
---lambda_0 2.45 \
+--lambda_0 2.41 \
 --log_fidelity \
 --mode memory \
 --hard 0.1 \

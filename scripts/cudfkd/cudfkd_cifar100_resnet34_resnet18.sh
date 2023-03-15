@@ -34,4 +34,3 @@ python datafree_kd.py \
 --memory \
 --log_fidelity \
 --loss l1
-# --resume /data/lijingru/DataFree/checkpoints/datafree-cudfkd/cifar10-resnet34-resnet18--cudfkd_dcgan_L2_adv_testrelu2.pth

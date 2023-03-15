@@ -18,5 +18,5 @@ python datafree_kd.py \
 --balance 20 \
 --gpu 3 \
 --seed 0 \
---data_root /data/lijingru/cifar10/ \
+--data_root ~/cifar10/ \
 --loss kl

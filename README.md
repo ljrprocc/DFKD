@@ -1,5 +1,5 @@
 # Adaptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modeling
-Forked by a benchmark of data-free knowledge distillation from paper "daptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modelin".
+Forked by a benchmark of data-free knowledge distillation from paper "Adaptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modelin".
 Forked by [CMI](https://arxiv.org/abs/2105.08584) and [CuDFKD](https://arxiv.org/abs/2208.13648).
 
 ## Installation
@@ -28,8 +28,8 @@ The implementation is in `datafree/synthesis/adadfkd.py`.
 | ADI        | 93.26 | 90.36 | 86.85   | 89.72   | 83.01   |
 | DFQ        | 94.61 | 90.84 | 91.69   | 92.01   | 86.14   |
 | CMI        | 94.84 | 91.13 | 92.78   | 92.52   | 90.01  |
-| CuDFKD     | **95.28** | 91.61 | 93.18   | 92.98   | 88.77   |
-| AdaDFKD(G) | 95.01 | **92.19** | **93.38** | **93.15** | **90.05** |
+| CuDFKD     | 95.28 | 91.61 | 93.18   | 92.98   | 88.77   |
+| AdaDFKD(G) | **95.32** | **92.19** | **93.38** | **93.15** | **90.05** |
 
 
 
@@ -44,9 +44,9 @@ The implementation is in `datafree/synthesis/adadfkd.py`.
 | ZSKT       | 67.74 | 34.72 | 29.73   | 28.44   |
 | ADI        | 61.32 | 54.13 | 61.33   | 61.34   |
 | DFQ        | 77.01 | 68.32 | 61.92   | 59.01   |
-| CMI        | **77.02** | 70.56 | **66.89**   | 65.11   |
-| CuDFKD     | 75.87 | **71.22** | 66.43   | 65.94   |
-| AdaDFKD(G)    | 75.61 | 71.09    | 66.70    | **66.22** |
+| CMI        | 77.02 | 70.56 | 66.89   | 65.11   |
+| CuDFKD     | 75.87 | 71.22 | 66.43   | 65.94   |
+| AdaDFKD    | **77.13** | **71.52**    | **68.19 **   | **67.54** |
 
 
 ## Other visualization results
@@ -59,5 +59,5 @@ Please refer to the supplementary material pdf.
 * DeepInv: [Dreaming to Distill: Data-free Knowledge Transfer via DeepInversion](https://arxiv.org/abs/1912.08795)
 * DFQ: [Data-Free Network Quantization With Adversarial Knowledge Distillation](https://arxiv.org/abs/2005.04136)
 * CMI: [Contrastive Model Inversion for Data-Free Knowledge Distillation](https://arxiv.org/abs/2105.08584)
-* CuDFKD: [Learning Data-Free Knowledge Distillation from Curriculum](https://arxiv.org/abs/2208.13648)
+* CuDFKD: [Dynamic Data-Free Knowledge Distillation by Easy-to-Hard Strategy](https://arxiv.org/abs/2208.13648)
 * Fast10: [Up to 100x Faster Data-free Knowledge Distillation](https://arxiv.org/pdf/2112.06253.pdf)
