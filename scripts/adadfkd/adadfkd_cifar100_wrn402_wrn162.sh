@@ -1,0 +1,43 @@
+for i in {1..10};
+do k=`echo "0.79+$i*0.02"|bc`;
+python datafree_kd.py \
+--method adadfkd \
+--dataset cifar100 \
+--batch_size 1024 \
+--teacher wrn40_2 \
+--student wrn16_2 \
+--lr 0.1 \
+--epochs 500 \
+--kd_steps 5 \
+--kd_steps_interval 10 \
+--g_steps_interval 1 \
+--ep_steps 400 \
+--g_steps 1 \
+--begin_fraction 0.2 \
+--end_fraction $k \
+--grad_adv 0.1 \
+--lr_g 0.001 \
+--adv 0.0 \
+--depth 2 \
+--T 2 \
+--lmda_ent -20 \
+--oh 1 \
+--act 0. \
+--gpu 5 \
+--seed 20 \
+--bn 1 \
+--save_dir run/infonce_wrn162_end_$i \
+--log_tag infonce_162_end_$i \
+--data_root ~/cifar100/ \
+--no_feature \
+--adv_type kl \
+--curr_option curr_log \
+--lambda_0 1.2 \
+--hard 0.1 \
+--length 0.8 \
+--tau 0.07 \
+--s_nce 0.15 \
+--log_fidelity \
+--N_neg 16384 \
+--loss kl;
+done
