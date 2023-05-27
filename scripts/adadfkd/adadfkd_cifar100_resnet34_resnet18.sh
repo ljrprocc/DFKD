@@ -5,7 +5,7 @@ python datafree_kd.py \
 --teacher vgg11 \
 --student resnet18 \
 --lr 0.1 \
---epochs 500 \
+--epochs 400 \
 --kd_steps 5 \
 --kd_steps_interval 10 \
 --g_steps_interval 1 \
@@ -30,7 +30,7 @@ python datafree_kd.py \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
---lambda_0 1.2 \
+--lambda_0 1.0 \
 --hard 0.0 \
 --length 1.0 \
 --tau 0.07 \

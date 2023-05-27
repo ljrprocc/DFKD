@@ -694,6 +694,7 @@ def main_worker(gpu, ngpus_per_node, args):
             logger.info(info)
         scheduler.step()
         is_best = acc1 > best_acc1
+        
         is_new_direct = (args.save_freq > 0 and (epoch + 1) % args.save_freq == 0)
         best_acc1 = max(acc1, best_acc1)
         if args.log_fidelity:
@@ -817,9 +818,9 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
 def save_checkpoint(state, is_best, is_save_all, epoch=0, filename='checkpoint.pth'):
     if is_best:
         if is_save_all:
-            if not os.path.exists('temp_ckpt/'):
-                os.mkdir('temp_ckpt/')
-            filename = 'temp_ckpt/{}_checkpoint_{}.pth'.format(filename[:-4], epoch)
+            if not os.path.exists('temp_ckpt_{}/'.format(filename[:-4])):
+                os.mkdir('temp_ckpt_{}/'.format(filename[:-4]))
+            filename = 'temp_ckpt_{}/checkpoint_{}.pth'.format(filename[:-4], epoch)
         torch.save(state, filename)
 
 if __name__ == '__main__':
