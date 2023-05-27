@@ -1,8 +1,8 @@
-CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
+CUDA_VISIBLE_DEVICES=1,2 python datafree_kd.py \
 --method cudfkd \
 --dataset tiny_imagenet \
 --batch_size 512 \
---teacher resnet34 \
+--teacher resnet50 \
 --student resnet18 \
 --lr 0.1 \
 --epochs 400 \
@@ -14,7 +14,7 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --lr_g 0.001 \
 --begin_fraction 0.2 \
 --end_fraction 0.75 \
---grad_adv 0.15 \
+--grad_adv 0.1 \
 --adv 1. \
 --depth 3 \
 --T 5 \
@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --seed 0 \
 --bn 1 \
 --save_dir run/cudfkd_test \
---log_tag cudfkd_L3_line8 \
+--log_tag cudfkd_L3_line9 \
 --data_root ../timagenet/tiny-imagenet-200/ \
 --multiprocessing_distributed \
 --world_size 2 \
@@ -32,5 +32,5 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
---lambda_0 1 \
+--lambda_0 1.2 \
 --loss l1

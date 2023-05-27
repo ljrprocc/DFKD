@@ -342,14 +342,15 @@ def main_worker(gpu, ngpus_per_node, args):
     
     ckpt = torch.load('checkpoints/%s/%s_%s.pth'%(folder, args.dataset, args.teacher), map_location='cpu')['state_dict']
     # if args.gpu == 0:
-    #     print(ckpt['state_dict'].keys())
+    #     print(ckpt.keys())
     # exit(-1)
     # if args.distributed:
     #     ckpt = {'.'.join(k.split('.')[1:]):v for k,v in ckpt.items()}
 
-    teacher.load_state_dict(ckpt)
+    
     student = prepare_model(student)
     teacher = prepare_model(teacher)
+    teacher.load_state_dict(ckpt)
     criterion = datafree.criterions.KLDiv()
     kd_steps = args.kd_steps_interval.split(',')
     kd_steps = [int(x) for x in kd_steps]
@@ -389,14 +390,14 @@ def main_worker(gpu, ngpus_per_node, args):
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method in ['zskt', 'dfad', 'dfq', 'dafl']:
         nz = 512 if args.method=='dafl' else 256
-        if args.dataset == 'imagenet':
+        if args.dataset == 'tiny_imagenet':
             nz = 1024
-        generator = datafree.models.generator.LargeGenerator(nz=nz, ngf=64, img_size=32, nc=3)
-        # generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
+        # generator = datafree.models.generator.LargeGenerator(nz=nz, ngf=64, img_size=32, nc=3)
+        generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
         if args.dataset == 'imagenet':
             generator = datafree.models.stylegan_network.Generator()
         generator = prepare_model(generator)
-        criterion = torch.nn.L1Loss() if args.method=='dfad' else datafree.criterions.KLDiv()
+        criterion = torch.nn.L1Loss() if args.loss=='l1' else datafree.criterions.KLDiv()
         synthesizer = datafree.synthesis.GenerativeSynthesizer(
                  teacher=teacher, student=student, generator=generator, nz=nz, 
                  img_size=(3, img_size, img_size), iterations=args.g_steps, lr_g=args.lr_g,
@@ -408,7 +409,7 @@ def main_worker(gpu, ngpus_per_node, args):
         generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
         generator = prepare_model(generator)
         feature_layers = None # use all conv layers
-        if args.teacher=='resnet34': # only use blocks
+        if args.teacher=='resnet34' or args.teacher=='resnet50': # only use blocks
             feature_layers = [teacher.layer1, teacher.layer2, teacher.layer3, teacher.layer4]
         synthesizer = datafree.synthesis.CMISynthesizer(teacher, student, generator, 
                  nz=nz, num_classes=num_classes, img_size=(3, img_size, img_size), 
@@ -482,7 +483,7 @@ def main_worker(gpu, ngpus_per_node, args):
         elif args.loss == 'l2':
             criterion = torch.nn.MSELoss()
         else:
-            criterion = datafree.criterions.KLDiv()
+            criterion = datafree.criterions.KLDiv(T=args.T)
         if args.no_feature:
             L = 1
         else:
@@ -714,6 +715,8 @@ def main_worker(gpu, ngpus_per_node, args):
             }
             if args.method == 'cudfkd' or args.method == 'adadfkd':
                 save_dict['G'] = tg.state_dict()
+                if args.method == 'adadfkd':
+                    save_dict['neg_bank'] = synthesizer.neg_bank.queue
             save_checkpoint(save_dict, is_best, is_new_direct, epoch, _best_ckpt)
     if args.local_rank<=0 or args.distributed:
         logger.info("Best: %.4f"%best_acc1)
