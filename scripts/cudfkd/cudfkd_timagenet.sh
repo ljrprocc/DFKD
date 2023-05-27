@@ -33,4 +33,5 @@ CUDA_VISIBLE_DEVICES=1,2 python datafree_kd.py \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1.2 \
+--log_fidelity \
 --loss l1
