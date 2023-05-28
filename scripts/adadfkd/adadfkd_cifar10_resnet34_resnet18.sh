@@ -30,7 +30,7 @@ python datafree_kd.py \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
---lambda_0 2.3 \
+--lambda_0 2.2 \
 --log_fidelity \
 --mode memory \
 --hard 0.1 \
