@@ -14,7 +14,7 @@ CUDA_VISIBLE_DEVICES=1,2 python datafree_kd.py \
 --lr_g 0.001 \
 --begin_fraction 0.2 \
 --end_fraction 0.75 \
---grad_adv 0.1 \
+--grad_adv 0.15 \
 --adv 1. \
 --depth 3 \
 --T 5 \
@@ -24,7 +24,7 @@ CUDA_VISIBLE_DEVICES=1,2 python datafree_kd.py \
 --seed 0 \
 --bn 1 \
 --save_dir run/cudfkd_test \
---log_tag cudfkd_L3_line9 \
+--log_tag cudfkd_L3_line9_2 \
 --data_root ../timagenet/tiny-imagenet-200/ \
 --multiprocessing_distributed \
 --world_size 2 \
