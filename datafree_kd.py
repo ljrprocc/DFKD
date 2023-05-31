@@ -816,11 +816,13 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         return global_iter
     
 def save_checkpoint(state, is_best, is_save_all, epoch=0, filename='checkpoint.pth'):
-    if is_best:
-        if is_save_all:
-            if not os.path.exists('temp_ckpt_{}/'.format(filename[:-4])):
-                os.mkdir('temp_ckpt_{}/'.format(filename[:-4]))
-            filename = 'temp_ckpt_{}/checkpoint_{}.pth'.format(filename[:-4], epoch)
+    if is_save_all:
+        if not os.path.exists('temp_ckpt_{}/'.format(filename[:-4])):
+            os.mkdir('temp_ckpt_{}/'.format(filename[:-4]))
+        filename = 'temp_ckpt_{}/checkpoint_{}.pth'.format(filename[:-4], epoch)
+    
+    if is_best or is_save_all:
+        
         torch.save(state, filename)
 
 if __name__ == '__main__':
