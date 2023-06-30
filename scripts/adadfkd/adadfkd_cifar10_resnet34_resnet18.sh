@@ -24,8 +24,8 @@ python datafree_kd.py \
 --gpu 5 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_retest_2_4 \
---log_tag infonce_retest_2_4 \
+--save_dir run/infonce_retest_2_5 \
+--log_tag infonce_retest_2_5 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -40,5 +40,5 @@ python datafree_kd.py \
 --s_nce 0.1 \
 --loss kl \
 --nt2_mode none \
---save_freq 50 \
+--save_freq 25 \
 --N_neg 8192

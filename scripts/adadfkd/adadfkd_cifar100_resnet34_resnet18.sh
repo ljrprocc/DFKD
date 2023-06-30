@@ -15,7 +15,7 @@ python datafree_kd.py \
 --end_fraction 0.8 \
 --grad_adv 0.0 \
 --lr_g 0.001 \
---adv 0. \
+--adv 1. \
 --depth 2 \
 --T 5 \
 --lmda_ent -20 \
@@ -24,8 +24,8 @@ python datafree_kd.py \
 --gpu 5 \
 --seed 20 \
 --bn 1 \
---save_dir run/abl_line2 \
---log_tag abl_line2 \
+--save_dir run/abl_line32 \
+--log_tag abl_line32 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
@@ -35,7 +35,7 @@ python datafree_kd.py \
 --length 1.0 \
 --tau 0.07 \
 --neg 0.0 \
---s_nce 0.0 \
+--s_nce 0.1 \
 --log_fidelity \
 --mode memory \
 --N_neg 24576 \
