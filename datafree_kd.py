@@ -234,7 +234,7 @@ def main_worker(gpu, ngpus_per_node, args):
             # global rank among all the processes
             args.local_rank = args.rank * ngpus_per_node + gpu
         os.environ['MASTER_ADDR'] = "127.0.0.1"
-        os.environ['MASTER_PORT'] = "6668"
+        os.environ['MASTER_PORT'] = "6669"
         os.environ["RANK"] = str(args.local_rank)
         # os.environ["WORLD_SIZE"] = str(args.world_size)
         dist.init_process_group(backend=args.dist_backend, world_size=args.world_size, rank=args.local_rank, timeout=timedelta(minutes=1))
@@ -344,10 +344,12 @@ def main_worker(gpu, ngpus_per_node, args):
     # if args.gpu == 0:
     #     print(ckpt.keys())
     # exit(-1)
-    # if args.distributed:
-    #     ckpt = {'.'.join(k.split('.')[1:]):v for k,v in ckpt.items()}
+    if args.dataset == 'tiny_imagenet' and not args.distributed:
+        # print('************')
+        ckpt = {'.'.join(k.split('.')[1:]):v for k,v in ckpt.items()}
 
-    
+    # print(args.method, args.distributed)
+    # exit(-1)
     student = prepare_model(student)
     teacher = prepare_model(teacher)
     teacher.load_state_dict(ckpt)
@@ -406,7 +408,8 @@ def main_worker(gpu, ngpus_per_node, args):
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method=='cmi':
         nz = 256
-        generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
+        # generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
+        generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
         generator = prepare_model(generator)
         feature_layers = None # use all conv layers
         if args.teacher=='resnet34' or args.teacher=='resnet50': # only use blocks

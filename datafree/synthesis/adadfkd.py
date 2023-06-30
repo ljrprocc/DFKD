@@ -10,7 +10,7 @@ import datafree
 from datafree.hooks import DeepInversionHook
 from datafree.utils import MoCo, DataIter, FeaturePool
 from datafree.criterions import jsdiv, kldiv
-from datafree.datasets.utils import curr_v, lambda_scheduler  
+from datafree.utils import difficulty_mining
 
 def reset_model(model):
     for m in model.modules():
