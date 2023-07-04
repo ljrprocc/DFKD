@@ -719,7 +719,7 @@ def main_worker(gpu, ngpus_per_node, args):
             }
             if args.method == 'cudfkd' or args.method == 'adadfkd':
                 save_dict['G'] = tg.state_dict()
-                if args.method == 'adadfkd':
+                if args.method == 'adadfkd' and args.hard>0:
                     save_dict['neg_bank'] = synthesizer.neg_bank.queue
             save_checkpoint(save_dict, is_best, is_new_direct, epoch, _best_ckpt)
     if args.local_rank<=0 or args.distributed:
@@ -820,9 +820,9 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
     
 def save_checkpoint(state, is_best, is_save_all, epoch=0, filename='checkpoint.pth'):
     if is_save_all:
-        if not os.path.exists('temp_ckpt_{}/'.format(filename[:-4])):
-            os.mkdir('temp_ckpt_{}/'.format(filename[:-4]))
-        filename = 'temp_ckpt_{}/checkpoint_{}.pth'.format(filename[:-4], epoch)
+        if not os.path.exists('{}_temp/'.format(filename[:-4])):
+            os.mkdir('{}_temp/'.format(filename[:-4]))
+        filename = '{}_temp/checkpoint_{}.pth'.format(filename[:-4], epoch)
     
     if is_best or is_save_all:
         

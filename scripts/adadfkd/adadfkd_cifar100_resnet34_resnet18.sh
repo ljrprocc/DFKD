@@ -24,8 +24,8 @@ python datafree_kd.py \
 --gpu 0 \
 --seed 20 \
 --bn 1 \
---save_dir run/abl_line23 \
---log_tag abl_line23 \
+--save_dir run/abl_line32 \
+--log_tag abl_line32 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
@@ -38,5 +38,5 @@ python datafree_kd.py \
 --s_nce 0.1 \
 --log_fidelity \
 --mode memory \
---N_neg 1024 \
+--N_neg 12288 \
 --loss l1

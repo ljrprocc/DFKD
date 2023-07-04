@@ -24,8 +24,8 @@ python datafree_kd.py \
 --gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_retest_abl2 \
---log_tag infonce_retest_abl2 \
+--save_dir run/infonce_retest_2_5 \
+--log_tag infonce_retest_2_5 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
