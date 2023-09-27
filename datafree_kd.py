@@ -357,7 +357,7 @@ def main_worker(gpu, ngpus_per_node, args):
     g_steps = args.g_steps_interval.split(',')
     g_step = [int(x) for x in g_steps]
     g_steps = g_step[0]
-    if args.dataset.startswith('cifar'):
+    if args.dataset.startswith('cifar') or args.dataset == 'svhn':
         img_size = 32
     elif args.dataset == 'tiny_imagenet':
         img_size = 64

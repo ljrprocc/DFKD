@@ -1,0 +1,24 @@
+python datafree_kd.py \
+--method dfq \
+--dataset svhn \
+--batch_size 1024 \
+--teacher wrn40_2 \
+--student wrn16_2 \
+--lr 0.1 \
+--epochs 200 \
+--kd_steps 10 \
+--ep_steps 400 \
+--g_steps 1 \
+--lr_g 1e-3 \
+--adv 1 \
+--T 5 \
+--bn 1 \
+--oh 1 \
+--act 0 \
+--balance 20 \
+--gpu 5 \
+--seed 0 \
+--data_root ~/svhn \
+--log_tag dfq_retest_log4 \
+--log_fidelity \
+--curr_option none 
