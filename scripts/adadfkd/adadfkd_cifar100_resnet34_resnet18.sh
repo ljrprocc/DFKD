@@ -21,7 +21,7 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 5 \
+--gpu 0 \
 --seed 20 \
 --bn 1 \
 --save_dir run/abl_line32 \
@@ -31,12 +31,12 @@ python datafree_kd.py \
 --adv_type kl \
 --curr_option curr_log \
 --lambda_0 1.0 \
---hard 0.0 \
---length 1.0 \
+--hard 0.1 \
+--length 0.8 \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \
 --log_fidelity \
 --mode memory \
---N_neg 24576 \
+--N_neg 12288 \
 --loss l1

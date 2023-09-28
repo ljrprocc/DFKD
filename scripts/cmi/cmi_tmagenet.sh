@@ -1,0 +1,27 @@
+python datafree_kd.py \
+--method cmi \
+--dataset tiny_imagenet \
+--batch_size 16 \
+--teacher resnet50 \
+--student resnet18 \
+--lr 0.1 \
+--kd_steps 400 \
+--ep_steps 400 \
+--epochs 300 \
+--g_steps 400 \
+--lr_g 1e-3 \
+--adv 0 \
+--bn 1.0 \
+--oh 0.5 \
+--cr 0.8 \
+--cr_T 0.1 \
+--act 0 \
+--balance 0 \
+--gpu 0 \
+--seed 0 \
+--depth 3 \
+--T 20 \
+--save_dir run/cmi_timage2 \
+--log_tag cmi_timage2 \
+--data_root ~/timagenet/tiny-imagenet-200/ \
+--log_fidelity
