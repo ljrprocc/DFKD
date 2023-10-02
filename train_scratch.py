@@ -243,7 +243,7 @@ def main_worker(gpu, ngpus_per_node, args):
         model_dict['module.conv1.weight'] = first_layer_weight
         model_dict['module.conv1.bias']   = first_layer_bias
         model.load_state_dict(model_dict)
-        print('Successfully loading imagenet weights.')
+        print('Successfully loading tiny imagenet weights.')
 
     ############################################
     # Setup optimizer

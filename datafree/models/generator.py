@@ -2,6 +2,107 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# Tiny ImageNet Part
+class GenBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(GenBlock, self).__init__()
+        self.g_cond_mtd = g_cond_mtd
+        self.g_info_injection = g_info_injection
+
+        self.bn1 = nn.BatchNorm2d(in_features=in_channels)
+        self.bn2 = nn.BatchNorm2d(in_features=out_channels)
+
+        self.activation = nn.ReLU()
+        self.conv2d0 = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0)
+        self.conv2d1 = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2d2 = nn.Conv2d(in_channels=out_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x):
+        x0 = x
+        
+        x = self.bn1(x)
+    
+        x = self.activation(x)
+        x = F.interpolate(x, scale_factor=2, mode="nearest")
+        x = self.conv2d1(x)
+
+        
+        x = self.bn2(x)
+        
+        x = self.activation(x)
+        x = self.conv2d2(x)
+
+        x0 = F.interpolate(x0, scale_factor=2, mode="nearest")
+        x0 = self.conv2d0(x0)
+        out = x + x0
+        return out
+
+
+class TinyGenerator(nn.Module):
+    def __init__(self, z_dim, img_size, mixed_precision):
+        super(TinyGenerator, self).__init__()
+        g_in_dims_collection = {
+            "32": [g_conv_dim * 4, g_conv_dim * 4, g_conv_dim * 4],
+            "64": [g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2],
+            "128": [g_conv_dim * 16, g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2],
+            "256": [g_conv_dim * 16, g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2],
+            "512": [g_conv_dim * 16, g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2, g_conv_dim]
+        }
+
+        g_out_dims_collection = {
+            "32": [g_conv_dim * 4, g_conv_dim * 4, g_conv_dim * 4],
+            "64": [g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2, g_conv_dim],
+            "128": [g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2, g_conv_dim],
+            "256": [g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2, g_conv_dim],
+            "512": [g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2, g_conv_dim, g_conv_dim]
+        }
+
+        bottom_collection = {"32": 4, "64": 4, "128": 4, "256": 4, "512": 4}
+
+        self.z_dim = z_dim
+        self.num_classes = num_classes
+
+        self.mixed_precision = mixed_precision
+        self.MODEL = MODEL
+        self.in_dims = g_in_dims_collection[str(img_size)]
+        self.out_dims = g_out_dims_collection[str(img_size)]
+        self.bottom = bottom_collection[str(img_size)]
+        self.num_blocks = len(self.in_dims)
+    
+        self.linear0 = nn.Linear(in_features=self.z_dim, out_features=self.in_dims[0] * self.bottom * self.bottom, bias=True)
+
+        self.blocks = []
+        for index in range(self.num_blocks):
+            self.blocks += [[
+                GenBlock(in_channels=self.in_dims[index],
+                         out_channels=self.out_dims[index],)
+            ]]
+
+            
+
+        self.blocks = nn.ModuleList([nn.ModuleList(block) for block in self.blocks])
+
+        self.bn4 = nn.Batchnorm2d(in_features=self.out_dims[-1])
+        self.activation = nn.ReLU()
+        self.conv2d5 = nn.Conv2d(in_channels=self.out_dims[-1], out_channels=3, kernel_size=3, stride=1, padding=1)
+        self.tanh = nn.Tanh()
+
+        init_weights(self.modules, 'ortho')
+
+    def forward(self, z):
+        
+        act = self.linear0(z)
+        act = act.view(-1, self.in_dims[0], self.bottom, self.bottom)
+        for index, blocklist in enumerate(self.blocks):
+            for block in blocklist:
+                act = block(act)
+
+        act = self.bn4(act)
+        act = self.activation(act)
+        act = self.conv2d5(act)
+        out = self.tanh(act)
+        return out
+
 class Flatten(nn.Module):
     def __init__(self):
         super(Flatten, self).__init__()
@@ -506,3 +607,32 @@ class DCGAN_Discriminator(nn.Module):
 
     def forward(self, input):
         return self.main(input)
+
+def init_weights(modules, initialize):
+    for module in modules():
+        if (isinstance(module, nn.Conv2d) or isinstance(module, nn.ConvTranspose2d) or isinstance(module, nn.Linear)):
+            if initialize == "ortho":
+                init.orthogonal_(module.weight)
+                if module.bias is not None:
+                    module.bias.data.fill_(0.)
+            elif initialize == "N02":
+                init.normal_(module.weight, 0, 0.02)
+                if module.bias is not None:
+                    module.bias.data.fill_(0.)
+            elif initialize in ["glorot", "xavier"]:
+                init.xavier_uniform_(module.weight)
+                if module.bias is not None:
+                    module.bias.data.fill_(0.)
+            else:
+                pass
+        elif isinstance(module, nn.Embedding):
+            if initialize == "ortho":
+                init.orthogonal_(module.weight)
+            elif initialize == "N02":
+                init.normal_(module.weight, 0, 0.02)
+            elif initialize in ["glorot", "xavier"]:
+                init.xavier_uniform_(module.weight)
+            else:
+                pass
+        else:
+            pass

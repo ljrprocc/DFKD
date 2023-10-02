@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=1,2 python train_scratch.py --data_root ~/timagenet/ --dataset tiny_imagenet --batch-size 512 --epochs 200 --workers 8 --wd 0.0001 --model resnet50 --dist-backend nccl --world-size 2 --rank 0 --multiprocessing-distributed
+CUDA_VISIBLE_DEVICES=4,5 python train_scratch.py --data_root ~/timagenet/tiny-imagenet-200/ --dataset tiny_imagenet --batch-size 128 --epochs 200 --workers 8 --wd 0.0001 --model resnet50 --dist-backend nccl --world-size 2 --rank 0 --multiprocessing-distributed --log_tag retest4 --lr 0.2

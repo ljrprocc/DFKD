@@ -95,6 +95,24 @@ class NoisyCIFAR10(datasets.CIFAR10):
     def __len__(self):
         return len(self.data)
 
+class TinyImageNet(Dataset):
+    def __init__(self, root, split='train', transform=None):
+        self.listdir = open(os.path.join(root, '{}_list.txt'.format(split)),'r').readlines()
+        self.transform = transform
+    
+    def __getitem__(self, idx):
+        f = self.listdir[idx].strip().split()
+        img_f, y = f[0], int(f[1])
+        w = Image.open(img_f)
+        w = w.convert('RGB')
+        if self.transform is not None:
+            w = self.transform(w)
+
+        return w, y
+    
+    def __len__(self):
+        return len(self.listdir)
+
 
 def get_model(name: str, num_classes, pretrained=False, **kwargs):
     if 'imagenet' in name:
@@ -352,8 +370,10 @@ def get_dataset(name: str, data_root: str='data', return_transform=False, split=
             T.Normalize( **NORMALIZE_DICT[name] )]
         )       
         # data_root = os.path.join(data_root, 'tiny-imagenet-200')
-        train_dst = datasets.ImageFolder(os.path.join(data_root, 'train'), transform=train_transform)
-        val_dst = datasets.ImageFolder(os.path.join(data_root, 'val_split'), transform=val_transform)
+        # train_dst = datasets.ImageFolder(os.path.join(data_root, 'train'), transform=train_transform)
+        # val_dst = datasets.ImageFolder(os.path.join(data_root, 'val_split'), transform=val_transform)
+        train_dst = TinyImageNet(data_root, split='train', transform=train_transform)
+        val_dst = TinyImageNet(data_root, split='val', transform=val_transform)
 
     # For semantic segmentation
     elif name=='nyuv2':
