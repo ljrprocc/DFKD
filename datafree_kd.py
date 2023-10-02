@@ -392,8 +392,6 @@ def main_worker(gpu, ngpus_per_node, args):
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method in ['zskt', 'dfad', 'dfq', 'dafl']:
         nz = 512 if args.method=='dafl' else 256
-        if args.dataset == 'tiny_imagenet':
-            nz = 1024
         # generator = datafree.models.generator.LargeGenerator(nz=nz, ngf=64, img_size=32, nc=3)
         generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
         if args.dataset == 'imagenet':
@@ -410,8 +408,8 @@ def main_worker(gpu, ngpus_per_node, args):
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method=='cmi':
         nz = 256
-        generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
-        #generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
+        #generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
+        generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
         if args.dataset == 'tiny_imagenet':
             generator = datafree.model.generator.TinyGenerator(z_dim=128, img_size=img_size)
         generator = prepare_model(generator)
