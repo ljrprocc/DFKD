@@ -14,7 +14,7 @@ class GenerativeSynthesizer(BaseSynthesis):
                  adv=0, bn=0, oh=0, act=0, balance=0, criterion=None,
                  normalizer=None, device='cpu',
                  # TODO: FP16 and distributed training 
-                 autocast=None, use_fp16=False, distributed=False):
+                 autocast=None, use_fp16=False, distributed=False, num_classes=200):
         super(GenerativeSynthesizer, self).__init__(teacher, student)
         assert len(img_size)==3, "image size should be a 3-dimension tuple"
         self.img_size = img_size 
@@ -42,6 +42,7 @@ class GenerativeSynthesizer(BaseSynthesis):
         self.use_fp16 = use_fp16
         self.autocast = autocast # for FP16
         self.device = device
+        self.num_classes = num_classes
 
         # hooks for deepinversion regularization
         self.hooks = []
@@ -79,5 +80,6 @@ class GenerativeSynthesizer(BaseSynthesis):
     def sample(self):
         self.generator.eval()
         z = torch.randn( size=(self.sample_batch_size, self.nz), device=self.device )
+        targets = torch.randint(low=0, high=self.num_classes, size=(self.synthesis_batch_size,), device=self.device)
         inputs = self.generator(z)
         return inputs

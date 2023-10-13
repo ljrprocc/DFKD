@@ -1,16 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import init
 
 # Tiny ImageNet Part
 class GenBlock(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(GenBlock, self).__init__()
-        self.g_cond_mtd = g_cond_mtd
-        self.g_info_injection = g_info_injection
 
-        self.bn1 = nn.BatchNorm2d(in_features=in_channels)
-        self.bn2 = nn.BatchNorm2d(in_features=out_channels)
+        self.bn1 = nn.BatchNorm2d(in_channels)
+        self.bn2 = nn.BatchNorm2d(out_channels)
 
         self.activation = nn.ReLU()
         self.conv2d0 = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=1, stride=1, padding=0)
@@ -39,8 +38,10 @@ class GenBlock(nn.Module):
 
 
 class TinyGenerator(nn.Module):
-    def __init__(self, z_dim, img_size, mixed_precision):
+    def __init__(self, z_dim, img_size):
         super(TinyGenerator, self).__init__()
+        g_conv_dim = 64
+
         g_in_dims_collection = {
             "32": [g_conv_dim * 4, g_conv_dim * 4, g_conv_dim * 4],
             "64": [g_conv_dim * 16, g_conv_dim * 8, g_conv_dim * 4, g_conv_dim * 2],
@@ -60,10 +61,10 @@ class TinyGenerator(nn.Module):
         bottom_collection = {"32": 4, "64": 4, "128": 4, "256": 4, "512": 4}
 
         self.z_dim = z_dim
-        self.num_classes = num_classes
+        # self.num_classes = num_classes
 
-        self.mixed_precision = mixed_precision
-        self.MODEL = MODEL
+        # self.mixed_precision = mixed_precision
+        # self.MODEL = MODEL
         self.in_dims = g_in_dims_collection[str(img_size)]
         self.out_dims = g_out_dims_collection[str(img_size)]
         self.bottom = bottom_collection[str(img_size)]
@@ -82,7 +83,7 @@ class TinyGenerator(nn.Module):
 
         self.blocks = nn.ModuleList([nn.ModuleList(block) for block in self.blocks])
 
-        self.bn4 = nn.Batchnorm2d(in_features=self.out_dims[-1])
+        self.bn4 = nn.BatchNorm2d(self.out_dims[-1])
         self.activation = nn.ReLU()
         self.conv2d5 = nn.Conv2d(in_channels=self.out_dims[-1], out_channels=3, kernel_size=3, stride=1, padding=1)
         self.tanh = nn.Tanh()
@@ -90,7 +91,7 @@ class TinyGenerator(nn.Module):
         init_weights(self.modules, 'ortho')
 
     def forward(self, z):
-        
+        #print( z.shape, self.linear0)
         act = self.linear0(z)
         act = act.view(-1, self.in_dims[0], self.bottom, self.bottom)
         for index, blocklist in enumerate(self.blocks):
