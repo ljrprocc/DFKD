@@ -1,9 +1,9 @@
 python datafree_kd.py \
 --method deepinv \
 --dataset cifar10 \
---batch_size 256 \
+--batch_size 512 \
 --teacher vgg11 \
---student resnet18 \
+--student wrn40_1 \
 --lr 0.1 \
 --epochs 250 \
 --kd_steps 400 \
@@ -16,10 +16,10 @@ python datafree_kd.py \
 --T 20 \
 --act 0 \
 --balance 0 \
---gpu 3 \
+--gpu 4 \
 --seed 0 \
---save_dir run/deepinv_3 \
---log_tag deepinv_3 \
+--save_dir run/deepinv_vary3 \
+--log_tag deepinv_var3 \
 --curr_option none \
 --log_fidelity \
 --data_root ~/cifar10/

@@ -1,11 +1,11 @@
 python datafree_kd.py \
 --method zskt \
---dataset cifar10 \
---batch_size 768 \
---teacher resnet34 \
+--dataset cifar100 \
+--batch_size 1024 \
+--teacher vgg11 \
 --student resnet18 \
 --lr 0.1 \
---epochs 250 \
+--epochs 350 \
 --kd_steps 5 \
 --ep_steps 400 \
 --g_steps 1 \
@@ -16,9 +16,9 @@ python datafree_kd.py \
 --oh 0 \
 --act 0 \
 --balance 0 \
---gpu 1 \
+--gpu 4 \
 --seed 0 \
 --log_fidelity \
 --curr_option none \
---log_tag zskt_log1 \
---data_root ../cifar10/
+--log_tag zskt_vary2_100 \
+--data_root ~/cifar100/
