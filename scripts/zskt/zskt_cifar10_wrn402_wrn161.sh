@@ -3,15 +3,15 @@ python datafree_kd.py \
 --dataset cifar100 \
 --batch_size 1024 \
 --teacher vgg11 \
---student resnet18 \
+--student wrn40_1 \
 --lr 0.1 \
---epochs 350 \
+--epochs 300 \
 --kd_steps 5 \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 1e-3 \
 --adv 1 \
---T 20 \
+--T 2 \
 --bn 0 \
 --oh 0 \
 --act 0 \
@@ -21,4 +21,6 @@ python datafree_kd.py \
 --log_fidelity \
 --curr_option none \
 --log_tag zskt_vary2_100 \
+--loss kl \
+--adv_type kl \
 --data_root ~/cifar100/

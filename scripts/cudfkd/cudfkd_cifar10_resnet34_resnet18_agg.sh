@@ -7,8 +7,6 @@ python datafree_kd.py \
 --lr 0.1 \
 --epochs 250 \
 --kd_steps 10 \
---kd_steps_interval 10 \
---g_steps_interval 1 \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \
@@ -21,7 +19,7 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 2 \
+--gpu 5 \
 --seed 0 \
 --bn 1 \
 --save_dir run/cudfkd_retest \

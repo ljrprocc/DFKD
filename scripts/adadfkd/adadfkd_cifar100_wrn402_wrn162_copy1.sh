@@ -8,9 +8,7 @@ python datafree_kd.py \
 --student wrn16_2 \
 --lr 0.1 \
 --epochs 500 \
---kd_steps 5 \
---kd_steps_interval 10 \
---g_steps_interval 1 \
+--kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \
 --begin_fraction 0.2 \

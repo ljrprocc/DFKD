@@ -6,9 +6,7 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --student resnet18 \
 --lr 0.1 \
 --epochs 400 \
---kd_steps 5 \
---kd_steps_interval 10 \
---g_steps_interval 1 \
+--kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \

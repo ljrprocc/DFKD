@@ -3,7 +3,7 @@ python datafree_kd.py \
 --dataset cifar10 \
 --batch_size 768 \
 --teacher resnet34 \
---student resnet18 \
+--student wrn40_1 \
 --lr 0.1 \
 --epochs 300 \
 --kd_steps 10 \
@@ -19,11 +19,11 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 2 \
+--gpu 5 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_retest_2_5 \
---log_tag infonce_retest_2_5 \
+--save_dir run/infonce_vary1_2 \
+--log_tag infonce_vary1_2 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -32,10 +32,10 @@ python datafree_kd.py \
 --log_fidelity \
 --mode memory \
 --hard 0.1 \
---length 0.9 \
+--length 0.8 \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \
 --loss kl \
 --nt2_mode none \
---N_neg 4096
+--N_neg 6144

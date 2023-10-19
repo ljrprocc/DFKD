@@ -1,5 +1,3 @@
-for i in {1..10};
-do k=`echo "0.095+$i*0.001"|bc`;
 python datafree_kd.py \
 --method adadfkd \
 --dataset cifar100 \
@@ -8,14 +6,12 @@ python datafree_kd.py \
 --student wrn40_1 \
 --lr 0.1 \
 --epochs 500 \
---kd_steps 5 \
---kd_steps_interval 10 \
---g_steps_interval 1 \
+--kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \
 --begin_fraction 0.2 \
 --end_fraction 0.8 \
---grad_adv 0.09  \
+--grad_adv 0.095  \
 --lr_g 0.001 \
 --adv 0.0 \
 --depth 2 \
@@ -26,8 +22,8 @@ python datafree_kd.py \
 --gpu 3 \
 --seed 20 \
 --bn 1 \
---save_dir run/infonce_wrn401_s_0$i \
---log_tag infonce_401_s_0$i \
+--save_dir run/infonce_wrn401_s \
+--log_tag infonce_401_s \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
@@ -37,8 +33,7 @@ python datafree_kd.py \
 --length 0.71 \
 --tau 0.07 \
 --neg 0.0 \
---s_nce $k \
+--s_nce 0.15 \
 --log_fidelity \
 --N_neg 16384 \
 --loss kl
-done

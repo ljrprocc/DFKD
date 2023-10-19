@@ -81,10 +81,10 @@ parser.add_argument('--epochs', default=200, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--g_steps', default=1, type=int, metavar='N',
                     help='number of iterations for generation')
-parser.add_argument('--g_steps_interval', default='2,1,1', type=str, help='number of iterations for generaton at each level of feature map distribution.')
+# parser.add_argument('--g_steps_interval', default='2,1,1', type=str, help='number of iterations for generaton at each level of feature map distribution.')
 parser.add_argument('--kd_steps', default=400, type=int, metavar='N',
                     help='number of iterations for KD after generation')
-parser.add_argument('--kd_steps_interval', type=str, default='400,200,100', help='number of iterations for KD after generaton for each level of feature map.')
+# parser.add_argument('--kd_steps_interval', type=str, default='400,200,100', help='number of iterations for KD after generaton for each level of feature map.')
 parser.add_argument('--ep_steps', default=400, type=int, metavar='N',
                     help='number of total iterations in each epoch')
 parser.add_argument('--save_freq', default=0, type=int, help='Save every t epochs for further visuali')
@@ -359,11 +359,8 @@ def main_worker(gpu, ngpus_per_node, args):
     teacher = prepare_model(teacher)
     teacher.load_state_dict(ckpt)
     criterion = datafree.criterions.KLDiv()
-    kd_steps = args.kd_steps_interval.split(',')
-    kd_steps = [int(x) for x in kd_steps]
-    g_steps = args.g_steps_interval.split(',')
-    g_step = [int(x) for x in g_steps]
-    g_steps = g_step[0]
+    kd_steps = args.kd_steps
+    g_step = args.g_steps
     if args.dataset.startswith('cifar') or args.dataset == 'svhn':
         img_size = 32
     elif args.dataset == 'tiny_imagenet':
@@ -405,7 +402,7 @@ def main_worker(gpu, ngpus_per_node, args):
         #     nz = 128
         #     generator = datafree.models.generator.TinyGenerator(z_dim=128, img_size=img_size)
         generator = prepare_model(generator)
-        criterion = torch.nn.L1Loss() if args.loss=='l1' else datafree.criterions.KLDiv()
+        criterion = torch.nn.L1Loss() if args.loss=='l1' else datafree.criterions.KLDiv(T=args.T)
         synthesizer = datafree.synthesis.GenerativeSynthesizer(
                  teacher=teacher, student=student, generator=generator, nz=nz, 
                  img_size=(3, img_size, img_size), iterations=args.g_steps, lr_g=args.lr_g,
@@ -500,11 +497,7 @@ def main_worker(gpu, ngpus_per_node, args):
             L = 1
         else:
             L = (1 + args.depth)
-        if args.only_feature:
-            args.start_l = args.depth
-        else:
-            args.start_l = 0
-            args.g_steps *= L
+       
         assert args.no_feature or len(kd_steps) == L, 'error'
         for l in range(L):
             nz=512 if args.dataset.startswith('cifar') else 1024
@@ -666,7 +659,7 @@ def main_worker(gpu, ngpus_per_node, args):
     for epoch in range(args.start_epoch, args.epochs):
         args.current_epoch=epoch
 
-        for k in range( args.ep_steps//kd_steps[0] ):
+        for k in range( args.ep_steps//kd_steps ):
             # print(k)
             # two-stage
             # 1. Data synthesis
@@ -681,7 +674,7 @@ def main_worker(gpu, ngpus_per_node, args):
                     vis_result = synthesizer.synthesize(hard_factor=hard_factor, warmup=warmup)
                 # 2. Knowledge distillation
                 # kd_steps
-                global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps[l], l=l, global_iter=global_iter, save=(k==0), warmup=epoch<int(args.epochs * args.begin_fraction))
+                global_iter = train(synthesizer, [student, teacher], criterion, optimizer, args, kd_steps, l=l, global_iter=global_iter, save=(k==0), warmup=epoch<int(args.epochs * args.begin_fraction))
                 if args.log_fidelity:
                     global_iter, avg_diff = global_iter
 
@@ -759,7 +752,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         # print(i)
         loss_s = 0.0
         if args.method == 'cudfkd':
-            images = synthesizer.sample(l)
+            images = synthesizer.sample(l, args.memory)
         elif args.method == 'adadfkd':
             images = synthesizer.sample(l, warmup=warmup)
         else:

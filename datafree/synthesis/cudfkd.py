@@ -83,7 +83,7 @@ class CuDFKDSynthesizer(BaseSynthesis):
             v = v.to(self.device)
             g = g.to(self.device)
 
-        for i in range(self.iterations[l]):
+        for i in range(self.iterations):
             z = torch.randn(self.synthesis_batch_size, self.nz).to(self.device)
             # print(z)
             G.train()
@@ -91,7 +91,7 @@ class CuDFKDSynthesizer(BaseSynthesis):
             mu_theta = G(z)
             samples = self.normalizer(mu_theta)
             # print(samples)
-            x_inputs = self.normalizer(samples, reverse=True)
+            # x_inputs = self.normalizer(samples, reverse=True)
             
             t_out, t_feat = self.teacher(samples, l=l, return_features=True)
             p = F.softmax(t_out / self.T, dim=1).mean(0)
@@ -108,10 +108,11 @@ class CuDFKDSynthesizer(BaseSynthesis):
                 s_out = self.student(samples, l=l)
                 if self.adv_type == 'js':
                     l_js = jsdiv(s_out, t_out, T=3)
-                    loss_adv = 1.0-torch.clamp(l_js, 0.0, 1.0)
+                    loss_adv = -l_js
                 if self.adv_type == 'kl':
-                    mask = (s_out.max(1)[1]==t_out.max(1)[1]).float()
-                    loss_adv = -(kldiv(s_out, t_out, reduction='none', T=3).sum(1) * mask).mean()
+                    # mask = (s_out.max(1)[1]==t_out.max(1)[1]).float()
+                    
+                    loss_adv = -(kldiv(s_out, t_out, reduction='none', T=3).sum(1)).mean()
             else:
                 loss_adv = torch.zeros(1).to(self.device)
             
@@ -119,7 +120,7 @@ class CuDFKDSynthesizer(BaseSynthesis):
             with torch.no_grad():
                 if best_cost > loss.item() or best_inputs is None:
                     best_cost = loss.item()
-                    best_inputs = mu_theta
+                    best_inputs = mu_theta.data
                     
 
             loss.backward()
