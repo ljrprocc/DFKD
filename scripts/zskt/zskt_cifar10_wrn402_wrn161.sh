@@ -16,11 +16,11 @@ python datafree_kd.py \
 --oh 0 \
 --act 0 \
 --balance 0 \
---gpu 4 \
+--gpu 1 \
 --seed 0 \
 --log_fidelity \
 --curr_option none \
---log_tag zskt_vary2_100 \
+--log_tag zskt_vary2_1002 \
 --loss kl \
 --adv_type kl \
 --data_root ~/cifar100/

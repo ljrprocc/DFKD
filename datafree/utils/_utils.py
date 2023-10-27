@@ -435,7 +435,7 @@ class FeaturePool(object):
         return dst
 
 class ImagePool(object):
-    def __init__(self, root, save=False):
+    def __init__(self, root, save=True):
         self.root = os.path.abspath(root)
         os.makedirs(self.root, exist_ok=True)
         if not save:
@@ -459,6 +459,7 @@ class ImagePool(object):
             # print(imgs.detach().cpu().clamp_(0,1).permute(0,2,3,1).numpy()[0].shape)
             x = [Image.fromarray(w)  for w in (imgs.detach().cpu().clamp_(0,1).permute(0,2,3,1).numpy()*255).astype(np.uint8)]
             self.datas.extend(x)
+            self.save_buffer()
             # print(len(self.datas))
         # self.datas.append(Image.fromarray(imgs.detach().cpu().permute()))
         self._idx+=1

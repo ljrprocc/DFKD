@@ -12,8 +12,8 @@ python datafree_kd.py \
 --lr_g 0.001 \
 --begin_fraction 0.25 \
 --end_fraction 0.75 \
---adv 0.0 \
---grad_adv 0.05 \
+--adv 1.0 \
+--grad_adv 0.0 \
 --depth 2 \
 --T 20 \
 --lmda_ent -20 \

@@ -411,11 +411,11 @@ def main_worker(gpu, ngpus_per_node, args):
                  normalizer=args.normalizer, device=args.gpu)
     elif args.method=='cmi':
         nz = 256
-        #generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
-        generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
-        if args.dataset == 'tiny_imagenet':
-            nz = 128
-            generator = datafree.models.generator.TinyGenerator(z_dim=128, img_size=img_size)
+        generator = datafree.models.generator.Generator(nz=nz, ngf=64, img_size=img_size, nc=3)
+        # generator = datafree.models.generator.DCGAN_Generator_CIFAR10(nz=nz, ngf=64, nc=3, img_size=img_size, d=args.depth, cond=args.cond, type=type, widen_factor=widen_factor)
+        # if args.dataset == 'tiny_imagenet':
+        #     nz = 128
+        #     generator = datafree.models.generator.TinyGenerator(z_dim=128, img_size=img_size)
         generator = prepare_model(generator)
         feature_layers = None # use all conv layers
         if args.teacher=='resnet34' or args.teacher=='resnet50': # only use blocks
@@ -754,7 +754,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         if args.method == 'cudfkd':
             images = synthesizer.sample(l, args.memory)
         elif args.method == 'adadfkd':
-            images = synthesizer.sample(l, warmup=warmup)
+            images = synthesizer.sample(l)
         else:
             images = synthesizer.sample()
 

@@ -7,7 +7,7 @@ python datafree_kd.py \
 --teacher vgg11 \
 --student wrn40_1 \
 --lr 0.1 \
---epochs 300 \
+--epochs 400 \
 --kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \

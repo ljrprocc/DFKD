@@ -1,10 +1,8 @@
-for i in {1..10};
-do k=`echo "1+$i*0.1"|bc`;
 python datafree_kd.py \
 --method cudfkd \
 --dataset cifar100 \
---batch_size 768 \
---teacher resnet34 \
+--batch_size 512 \
+--teacher vgg11 \
 --student wrn40_1 \
 --lr 0.1 \
 --epochs 400 \
@@ -18,19 +16,19 @@ python datafree_kd.py \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 5 \
+--gpu 2 \
 --seed 0 \
 --bn 1 \
 --save_dir run/cudfkd_test \
---log_tag cudfkd_retest4_$i \
+--log_tag cudfkd_retest_100_T2_3 \
 --begin_fraction 0.2 \
 --end_fraction 0.75 \
---grad_adv 0.05 \
+--grad_adv 0.03 \
 --data_root ~/cifar100/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
---lambda_0 $k \
+--lambda_0 1.0 \
 --log_fidelity \
 --loss kl;
 done

@@ -1,41 +1,43 @@
+for i in {1..10};
+do k=`echo "0.8+$i*0.01"|bc`;
 python datafree_kd.py \
 --method adadfkd \
 --dataset cifar10 \
---batch_size 768 \
+--batch_size 256 \
 --teacher resnet34 \
 --student wrn40_1 \
 --lr 0.1 \
---epochs 300 \
+--epochs 500 \
 --kd_steps 10 \
 --ep_steps 400 \
 --g_steps 1 \
 --lr_g 0.001 \
 --begin_fraction 0.25 \
 --end_fraction 0.75 \
---adv 0.0 \
---grad_adv 0.05 \
+--adv 1.0 \
+--grad_adv 0.0 \
 --depth 2 \
 --T 20 \
 --lmda_ent -20 \
 --oh 1 \
 --act 0. \
---gpu 5 \
+--gpu 2 \
 --seed 0 \
 --bn 1 \
---save_dir run/infonce_vary1_2 \
---log_tag infonce_vary1_2 \
+--save_dir run/infonce_varytest_$i \
+--log_tag infonce_varytest_$i \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
 --curr_option curr_log \
---lambda_0 2.2 \
+--lambda_0 1.7 \
 --log_fidelity \
 --mode memory \
 --hard 0.1 \
---length 0.8 \
+--length $k \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \
 --loss kl \
 --nt2_mode none \
---N_neg 6144
+--N_neg 4096

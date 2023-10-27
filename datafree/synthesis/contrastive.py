@@ -205,7 +205,7 @@ class CMISynthesizer(BaseSynthesis):
         self.use_fp16 = use_fp16
         self.autocast = autocast # for FP16
         self.normalizer = normalizer
-        self.data_pool = ImagePool(root=self.save_dir)
+        self.data_pool = ImagePool(root=self.save_dir, save=True)
         self.transform = transform
         self.data_iter = None
 
