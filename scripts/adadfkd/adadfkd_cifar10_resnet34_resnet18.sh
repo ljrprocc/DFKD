@@ -20,7 +20,7 @@ python datafree_kd.py \
 --oh 1 \
 --act 0. \
 --gpu 2 \
---seed 0 \
+--seed 3407 \
 --bn 1 \
 --save_dir run/infonce_retest_2_5 \
 --log_tag infonce_retest_2_5 \

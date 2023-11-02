@@ -12,7 +12,7 @@ python datafree_kd.py \
 --ep_steps 2000 \
 --g_steps 200 \
 --lr_g 1e-3 \
---epochs 40 \
+--epochs 50 \
 --lr_decay_milestones 25,30,35 \
 --adv 0.5 \
 --bn 1 \
@@ -26,7 +26,7 @@ python datafree_kd.py \
 --adv_type kl \
 --log_fidelity \
 --cmi_init run/cmi-preinverted-wrn402 \
---save_dir run/adv_cmi_tim1 \
+--save_dir run/adv_cmi_tim2 \
 --log_tag adv_cmi_timagenet_test \
 --data_root ~/timagenet/tiny-imagenet-200/;
 done

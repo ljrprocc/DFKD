@@ -4,7 +4,7 @@ python datafree_kd.py \
 --batch_size 128 \
 --teacher resnet34 \
 --student wrn40_1 \
---epochs 200 \
+--epochs 500 \
 --lr 0.1 \
 --kd_steps 400 \
 --ep_steps 400 \
@@ -17,11 +17,11 @@ python datafree_kd.py \
 --cr_T 0.2 \
 --act 0 \
 --balance 0 \
---gpu 2 \
+--gpu 1 \
 --seed 40 \
 --T 20 \
---save_dir run/cmi_100_vary1 \
+--save_dir run/cmi_100_vary4 \
 --data_root ~/cifar100 \
 --log_fidelity \
 --nt2_mode none \
---log_tag cmi02_vary1
+--log_tag cmi02_vary2
