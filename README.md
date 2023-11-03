@@ -46,11 +46,25 @@ The implementation is in `datafree/synthesis/adadfkd.py`.
 | DFQ        | 77.01 | 68.32 | 61.92   | 59.01   |
 | CMI        | 77.02 | 70.56 | 66.89   | 65.11   |
 | CuDFKD     | 75.87 | 71.22 | 66.43   | 65.94   |
-| AdaDFKD    | **77.13** | **71.52**    | **68.19 **   | **67.54** |
+| AdaDFKD    | **77.13** | **71.52**    | **68.19**   | **67.54** |
 
+
+For Tiny-ImageNet, we provide the pretrained weights of as following:
+
+| Model    | Acc@1 |
+|----------|-------|
+| [ResNet50](https://drive.google.com/file/d/1ujElJLOtQu3YBz7tHkRbb3T3e8W_pefs/view?usp=drive_link) | 67.18 |
+| [ResNet34](https://drive.google.com/file/d/1Cze_g3SwIldwzh_jvXnGHf-SrC0kllDw/view?usp=sharing) | 62.43 |
+| [ResNet18](https://drive.google.com/file/d/1XBLC9wewTzZusnZC6PdxmDuC-8Ns0lC_/view?usp=sharing) | 61.48 |
+
+## Evaluation of the given paper
+Given trained checkpoint, you can check the result of $Acc@1$, $Agree@1$ and $L_p$ by running the following jupyter notebooks:
+
+- Results for CIFARs
+- Results for Tiny ImageNet
 
 ## Other visualization results
-Please refer to the supplementary material pdf.
+Please refer to the paper. The file `notebooks/other_Visualization.ipynb` supports the majority of experimental results in the paper.
 
 ## Reference
 
