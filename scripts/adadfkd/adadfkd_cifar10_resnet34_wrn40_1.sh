@@ -1,5 +1,3 @@
-for i in {1..10};
-do k=`echo "0.75+$i*0.01"|bc`;
 python datafree_kd.py \
 --method adadfkd \
 --dataset cifar10 \
@@ -22,10 +20,10 @@ python datafree_kd.py \
 --oh 1 \
 --act 0. \
 --gpu 5 \
---seed 3407 \
+--seed 0 \
 --bn 1 \
---save_dir run/infonce_varytest2_$i \
---log_tag infonce_varytest2_$i \
+--save_dir run/infonce_varytest5 \
+--log_tag infonce_varytest5 \
 --data_root ~/cifar10/ \
 --no_feature \
 --adv_type kl \
@@ -34,11 +32,10 @@ python datafree_kd.py \
 --log_fidelity \
 --mode memory \
 --hard 0.1 \
---length $k \
+--length 0.78 \
 --tau 0.07 \
 --neg 0.0 \
 --s_nce 0.1 \
 --loss kl \
 --nt2_mode none \
---N_neg 6144;
-done
+--N_neg 6144

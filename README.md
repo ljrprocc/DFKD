@@ -1,5 +1,5 @@
-# Adaptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modeling
-Forked by a benchmark of data-free knowledge distillation from paper "Adaptive Data-Free Knowledge Distillation by Dynamic Feature Relationship Modelin".
+# AdaDFKD: Exploring Adaptive Inter-Sample Relationship in Data-Free Knowledge Distillation
+Forked by a benchmark of data-free knowledge distillation from paper "AdaDFKD: Exploring Adaptive Inter-Sample Relationship in Data-Free Knowledge Distillation".
 Forked by [CMI](https://arxiv.org/abs/2105.08584) and [CuDFKD](https://arxiv.org/abs/2208.13648).
 
 ## Installation
@@ -60,8 +60,8 @@ For Tiny-ImageNet, we provide the pretrained weights of as following:
 ## Evaluation of the given paper
 Given trained checkpoint, you can check the result of $Acc@1$, $Agree@1$ and $L_p$ by running the following jupyter notebooks:
 
-- Results for CIFARs
-- Results for Tiny ImageNet
+- [Results for CIFARs](https://github.com/ljrprocc/DFKD/blob/main/notebooks/Eval_cifars.ipynb)
+- [Results for Tiny ImageNet](https://github.com/ljrprocc/DFKD/blob/main/notebooks/Eval_Tiny_imagenet.ipynb)
 
 ## Other visualization results
 Please refer to the paper. The file `notebooks/other_Visualization.ipynb` supports the majority of experimental results in the paper.

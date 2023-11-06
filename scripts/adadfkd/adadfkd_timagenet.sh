@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --lr_g 0.001 \
 --begin_fraction 0.2 \
 --end_fraction 0.75 \
---grad_adv 0.10 \
+--grad_adv 0.0 \
 --adv 1. \
 --depth 3 \
 --T 5 \
@@ -26,7 +26,7 @@ CUDA_VISIBLE_DEVICES=4,5 python datafree_kd.py \
 --tau 0.07 \
 --bn 1 \
 --save_dir run/adadfkd_test \
---log_tag adadfkd_new3 \
+--log_tag adadfkd_new4 \
 --data_root ~/timagenet/tiny-imagenet-200/ \
 --multiprocessing_distributed \
 --world_size 2 \
