@@ -1,10 +1,10 @@
 python datafree_kd.py \
 --method cmi \
---dataset cifar100 \
+--dataset svhn \
 --batch_size 128 \
---teacher resnet34 \
---student wrn40_1 \
---epochs 500 \
+--teacher resnet32x4 \
+--student resnet8x4 \
+--epochs 150 \
 --lr 0.1 \
 --kd_steps 400 \
 --ep_steps 400 \
@@ -17,11 +17,11 @@ python datafree_kd.py \
 --cr_T 0.2 \
 --act 0 \
 --balance 0 \
---gpu 1 \
+--gpu 0 \
 --seed 40 \
 --T 20 \
---save_dir run/cmi_100_vary4 \
---data_root ~/cifar100 \
+--save_dir run/cmi_svhn1 \
+--data_root ~/svhn \
 --log_fidelity \
 --nt2_mode none \
---log_tag cmi02_vary2
+--log_tag cmi02_svhn1

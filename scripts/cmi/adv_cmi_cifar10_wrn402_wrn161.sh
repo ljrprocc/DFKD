@@ -1,10 +1,10 @@
 python datafree_kd.py \
 --method cmi \
---dataset cifar10 \
+--dataset svhn \
 --batch_size 128 \
 --synthesis_batch_size 256 \
---teacher resnet34 \
---student resnet18 \
+--teacher resnet32x4 \
+--student resnet8x4 \
 --lr 0.1 \
 --kd_steps 2000 \
 --ep_steps 2000 \
@@ -21,9 +21,9 @@ python datafree_kd.py \
 --act 0 \
 --balance 0 \
 --T 20 \
---gpu 5 \
+--gpu 0 \
 --adv_type kl \
---cmi_init run/cmi-preinverted-wrn402 \
---save_dir run/adv_cmi_cifar10 \
---log_tag adv_cmi_cifar10 \
---data_root ~/cifar10/
+--cmi_init run/cmi_svhn \
+--save_dir run/adv_cmi_svhn1 \
+--log_tag adv_cmi_svhn1 \
+--data_root ~/svhn/

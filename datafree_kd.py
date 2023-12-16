@@ -747,7 +747,7 @@ def train(synthesizer, model, criterion, optimizer, args, kd_step, l=0, global_i
         logger = args.logger[args.local_rank]
     else:
         logger = args.logger
-    history = (args.method == 'deepinv') or (args.method == 'cmi') or (args.method.endswith('cudfkd') and args.memory)
+    history = (args.method == 'deepinv') or (args.method == 'cmi') or (args.method == 'fast_meta') or (args.method.endswith('cudfkd') and args.memory)
     for i in range(kd_step):
         # print(i)
         loss_s = 0.0
