@@ -9,7 +9,7 @@ pip install -r requirements.txt
 ```
 
 ## Our method
-Based on curriculum learning and self-paced learning. Our method is called **CuDFKD**. The result can be rephrased by scripts `scripts/adadfkd/`. For example, when distill ResNet18 from ResNet34 at the benchmark CIFAR10, please run the following script
+Based on curriculum learning and self-paced learning. Our method is called **AdaDFKD**. The result can be rephrased by scripts `scripts/adadfkd/`. For example, when distill ResNet18 from ResNet34 at the benchmark CIFAR10, please run the following script
 
 ```
 bash scripts/adadfkd/adadfkd_cifar10_resnet34_resnet18.sh
